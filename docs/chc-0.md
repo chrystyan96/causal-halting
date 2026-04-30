@@ -3,8 +3,6 @@ layout: page
 title: CHC-0 Technical Overview
 ---
 
-# CHC-0 Technical Overview
-
 CHC-0 is the first, deliberately small version of the Causal Halting Calculus.
 
 Its goal is not to make every halting question decidable. Its goal is to isolate one structural pattern:

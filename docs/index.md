@@ -1,9 +1,7 @@
 ---
-layout: home
+layout: page
 title: Causal Halting
 ---
-
-# Causal Halting
 
 **Causal Halting is a small framework for detecting prediction-feedback loops in halting-style reasoning and AI agent designs.**
 
