@@ -1,13 +1,15 @@
 # Causal Halting
 
-A Codex skill, low-cost prompt guard, and experimental checker for detecting prediction-feedback loops in halting-style reasoning.
+A Codex skill, low-cost prompt guard, experimental checker, trace analyzer, and repair workflow for detecting prediction-feedback loops in halting-style reasoning and agent architectures.
 
 `causal-halting` packages four things:
 
 1. a Codex skill for applying Causal Halting Calculus (CHC-0);
 2. a formal reference note for the CHC-0 rules and theorems;
 3. a small Python checker for CHC-0 causal graphs;
-4. a low-cost background prompt guard that lets the main LLM detect CHC-0 cases from causal structure, not keyword matching.
+4. explicit design and trace analyzers for agent/workflow systems;
+5. a causal repair workflow that proposes safer execution boundaries;
+6. a low-cost background prompt guard that lets the main LLM detect CHC-0 cases from causal structure, not keyword matching.
 
 The project is a research tool. It does not solve the classical Halting Problem. It gives a concrete way to separate two different failure modes that are often conflated:
 
@@ -135,23 +137,38 @@ causal-halting/
       examples/
         diagonal.chc
         diagonal.graph
+        future-run.trace.jsonl
         qe-valid-acyclic.chc
         safe-supervisor.graph
+        self-prediction.analysis.json
+        self-prediction.trace.jsonl
       references/
         causal-halting-calculus.md
       scripts/
         chc_check.py
+        chc_design_analyze.py
+        chc_design_schema.py
+        chc_repair.py
+        chc_trace_check.py
   scripts/
     chc_check.py
+    chc_design_analyze.py
+    chc_design_schema.py
+    chc_repair.py
     chc_session_guard.py
+    chc_trace_check.py
     evaluate_responses.py
   examples/
     diagonal.chc
     diagonal.graph
+    future-run.trace.jsonl
     qe-valid-acyclic.chc
     safe-supervisor.graph
+    self-prediction.analysis.json
+    self-prediction.trace.jsonl
   tests/
     test_chc_check.py
+    test_chc_design_trace_repair.py
     test_chc_session_guard.py
 ```
 
@@ -185,7 +202,7 @@ Important distinction:
 
 ```text
 skills/causal-halting/ is portable and self-contained.
-It includes SKILL.md, references, examples, checker script, and license.
+It includes SKILL.md, references, examples, checker scripts, design/trace analysis scripts, repair script, and license.
 
 The repository root is the full Codex plugin.
 It adds hooks, /causal-halting commands, evaluation fixtures, and plugin metadata.
@@ -199,6 +216,9 @@ The checker uses Python standard library only.
 cd causal-halting
 python scripts/chc_check.py examples/diagonal.chc
 python scripts/chc_check.py --format json examples/diagonal.graph
+python scripts/chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
+python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
+python scripts/chc_repair.py examples/self-prediction.analysis.json
 ```
 
 The portable skill package also includes the checker:
@@ -207,6 +227,9 @@ The portable skill package also includes the checker:
 cd skills\causal-halting
 python scripts\chc_check.py examples\diagonal.chc
 python scripts\chc_check.py --format json examples\diagonal.graph
+python scripts\chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
+python scripts\chc_trace_check.py examples\self-prediction.trace.jsonl
+python scripts\chc_repair.py examples\self-prediction.analysis.json
 ```
 
 ## Checker Input Formats
@@ -411,6 +434,96 @@ Result:
 
 The run asks whether this same run halts and then uses the answer to control itself.
 
+## From Hygiene To Verification
+
+Version 1.4 extends the project beyond a prompt-level warning label. It adds three explicit analysis workflows:
+
+```text
+/causal-halting analyze-design <text-or-file>
+/causal-halting analyze-trace <jsonl-file>
+/causal-halting repair <analysis-json>
+```
+
+The intent is to move from:
+
+```text
+"remember to be careful with agent loops"
+```
+
+to:
+
+```text
+infer a causal graph -> classify feedback -> propose a safer boundary -> state proof obligations
+```
+
+### Design Analysis
+
+Use `analyze-design` when the input is a natural-language design sketch:
+
+```powershell
+python scripts/chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
+```
+
+Example output:
+
+```json
+{
+  "classification": "causal_paradox",
+  "inferred_graph": [
+    "E(AgentRun,input) -> R(AgentRun,input)",
+    "R(AgentRun,input) -> E(AgentRun,input)"
+  ],
+  "uncertain_edges": [],
+  "repair": [
+    "Move the prediction result to an external orchestrator or controller."
+  ]
+}
+```
+
+If the design mentions observation but does not say where the result flows, the analyzer returns `insufficient_info` instead of guessing.
+
+### Trace Analysis
+
+Use `analyze-trace` when the input is an execution/event trace. The deterministic JSONL schema is:
+
+```json
+{"type":"exec_start","exec_id":"run-1","program":"AgentRun","input":"task-a"}
+{"type":"observe","observer":"Supervisor","target_exec_id":"run-1","result_id":"r-1"}
+{"type":"control","result_id":"r-1","controlled_exec_id":"run-1","action":"change_strategy"}
+```
+
+Run:
+
+```powershell
+python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
+```
+
+The trace is a `causal_paradox` when a result produced by observing `run-1` controls `run-1` itself. It is `valid_acyclic` when that result controls a different run, a future run, or an external controller.
+
+### Repair Reports
+
+Use `repair` after a design or trace analysis reports `causal_paradox`:
+
+```powershell
+python scripts/chc_repair.py examples/self-prediction.analysis.json
+```
+
+The repair engine emits a before/after causal boundary:
+
+```text
+Problem:
+  E(AgentRun,input) -> R(AgentRun,input) -> E(AgentRun,input)
+
+Repair:
+  E(AgentRun,input) -> R(AgentRun,input) -> E(Orchestrator,input)
+  E(Orchestrator,input) -> E(NextAgentRun,input)
+
+Proof obligation:
+  R(AgentRun,input) must not be consumed by AgentRun before AgentRun ends.
+```
+
+This still does not prove arbitrary termination. The gain is narrower and practical: it turns self-prediction loops into explicit architecture boundaries that can be reviewed and tested.
+
 ## Using The Codex Skill
 
 After installation, ask Codex to use the skill on designs involving halting, self-reference, prediction feedback, or AI agent loops:
@@ -484,6 +597,24 @@ To check an explicit `.graph` or `.chc` file:
 
 ```text
 /causal-halting check examples/diagonal.graph
+```
+
+To infer a causal model from a design:
+
+```text
+/causal-halting analyze-design examples/design.txt
+```
+
+To verify an event trace:
+
+```text
+/causal-halting analyze-trace examples/self-prediction.trace.jsonl
+```
+
+To generate a causal repair report:
+
+```text
+/causal-halting repair examples/self-prediction.analysis.json
 ```
 
 The same state can also be changed through explicit text commands, which are handled by the hook when a slash command is unavailable:
@@ -779,6 +910,9 @@ python -m json.tool .codex-plugin\plugin.json
 python -m json.tool hooks\hooks.json
 python scripts\chc_session_guard.py --mode status --format human
 python scripts\evaluate_responses.py
+python scripts\chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
+python scripts\chc_trace_check.py examples\self-prediction.trace.jsonl
+python scripts\chc_repair.py examples\self-prediction.analysis.json
 ```
 
 Expected:
@@ -815,6 +949,9 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 - The checker analyzes explicit CHC-0 artifacts only: graph DSL and mini-CHC syntax.
 - The checker detects CHC-0 causal graph failures only; it does not prove arbitrary termination or divergence.
 - The checker does not perform semantic halting analysis.
+- The design analyzer is conservative and should be treated as an inferred model, not a proof.
+- The trace analyzer is deterministic, but only for traces that follow the documented event schema.
+- The repair engine proposes architecture boundaries and proof obligations; it does not patch arbitrary application code.
 - The evaluation harness scores response shape with transparent text checks; it is not a model-graded benchmark.
 - The mini-CHC parser supports only v1 canonical syntax.
 - Session mode through `/causal-halting` depends on the host plugin runtime exposing or propagating prompt/session context as expected.
@@ -828,8 +965,13 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 
 - CHC-1: recursive CHC definitions with fixed-point causal effect summaries.
 - CHC-2: controlled higher-order code with effect-polymorphic causal types.
+- Framework adapters for generic JSON/YAML workflow specs, LangGraph-style flows, Temporal/Airflow-style orchestrators, and Codex-style session traces when available.
+- OpenTelemetry bridge for mapping distributed traces into CHC events.
+- Graph visualization for inferred and trace-derived E/R graphs.
 - Replace illustrative evaluation fixtures with live model comparison runs across several models.
-- Optional visualization for E/R causal graphs.
+- Benchmark corpus with 50-100 agent-loop prompts/designs and expected classifications.
+- False-positive audit for normal monitoring, retries, and planning.
+- Proof assistant encoding of core CHC-0 rules in Lean or Coq.
 
 ## License
 

@@ -34,11 +34,18 @@ causal-halting/
     causal-halting-calculus.md
   scripts/
     chc_check.py
+    chc_design_analyze.py
+    chc_design_schema.py
+    chc_trace_check.py
+    chc_repair.py
   examples/
     diagonal.chc
     diagonal.graph
+    future-run.trace.jsonl
     qe-valid-acyclic.chc
     safe-supervisor.graph
+    self-prediction.analysis.json
+    self-prediction.trace.jsonl
 ```
 
 ## Install
@@ -95,6 +102,9 @@ python scripts/chc_check.py examples/diagonal.graph
 python scripts/chc_check.py --format json examples/diagonal.chc
 python scripts/chc_check.py examples/qe-valid-acyclic.chc
 python scripts/chc_check.py examples/safe-supervisor.graph
+python scripts/chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
+python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
+python scripts/chc_repair.py examples/self-prediction.analysis.json
 ```
 
 Checker classifications:
@@ -160,11 +170,35 @@ classification: valid_acyclic
 
 The supervisor observes a separate worker. The result does not feed back into the observed worker execution.
 
+## Design, Trace, And Repair Workflows
+
+The portable skill also includes the v1.4 analysis scripts:
+
+```text
+chc_design_analyze.py  infer a causal graph from explicit design text
+chc_design_schema.py   validate design-analysis JSON
+chc_trace_check.py     deterministically analyze JSONL execution traces
+chc_repair.py          generate repair reports and proof obligations
+```
+
+Trace schema:
+
+```json
+{"type":"exec_start","exec_id":"run-1","program":"AgentRun","input":"task-a"}
+{"type":"observe","observer":"Supervisor","target_exec_id":"run-1","result_id":"r-1"}
+{"type":"control","result_id":"r-1","controlled_exec_id":"run-1","action":"change_strategy"}
+```
+
+Repair reports move same-run prediction feedback to a separate orchestrator/future-run boundary and emit the proof obligation that the observed execution must not consume its own prediction result before it ends.
+
 ## Limits
 
 - Does not solve the classical Halting Problem.
 - Does not prove arbitrary termination or divergence.
 - Checks explicit CHC-0 graph DSL and mini-CHC artifacts only.
+- Infers design graphs conservatively and marks ambiguous cases as `insufficient_info`.
+- Deterministically checks traces only when they follow the documented JSONL schema.
+- Produces causal refactoring guidance, not arbitrary code patches.
 - Treats semantic undecidability as `unproved`, not as `causal_paradox`.
 - Does not include the full Codex plugin hook or `/causal-halting` slash command. Those live in the full plugin repository.
 

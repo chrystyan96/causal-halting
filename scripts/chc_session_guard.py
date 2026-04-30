@@ -226,13 +226,110 @@ def check_file(root: Path, target: str | None) -> dict[str, Any]:
     }
 
 
+def analyze_design(root: Path, target: str | None) -> dict[str, Any]:
+    if not target:
+        return command_file_error(root, "analyze-design", "Missing design text or file path. Usage: /causal-halting analyze-design <text-or-file>")
+
+    chc_design = load_script_module("chc_design_analyze")
+    text = read_target_or_literal(root, target)
+    result = chc_design.analyze_design(text)
+    return {
+        "mode": "analyze-design",
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": "Analyzed design text.",
+        "classification": result["classification"],
+        "analysis_output": chc_design.format_human(result),
+        "analysis_json": result,
+    }
+
+
+def analyze_trace(root: Path, target: str | None) -> dict[str, Any]:
+    if not target:
+        return command_file_error(root, "analyze-trace", "Missing trace file path. Usage: /causal-halting analyze-trace <jsonl-file>")
+
+    path = resolve_existing_file(root, target)
+    if path is None:
+        return command_file_error(root, "analyze-trace", f"File not found: {root / target}")
+
+    chc_trace = load_script_module("chc_trace_check")
+    result = chc_trace.analyze_text(path.read_text(encoding="utf-8"))
+    return {
+        "mode": "analyze-trace",
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": f"Analyzed trace {path}",
+        "classification": result["classification"],
+        "analysis_output": chc_trace.format_human(result),
+        "analysis_json": result,
+    }
+
+
+def repair_file(root: Path, target: str | None) -> dict[str, Any]:
+    if not target:
+        return command_file_error(root, "repair", "Missing analysis JSON file path. Usage: /causal-halting repair <analysis-json>")
+
+    path = resolve_existing_file(root, target)
+    if path is None:
+        return command_file_error(root, "repair", f"File not found: {root / target}")
+
+    chc_repair = load_script_module("chc_repair")
+    try:
+        analysis = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return command_file_error(root, "repair", f"Invalid analysis JSON: {exc}")
+    result = chc_repair.repair_analysis(analysis if isinstance(analysis, dict) else {})
+    return {
+        "mode": "repair",
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": f"Generated repair report for {path}",
+        "classification": result["classification"],
+        "analysis_output": chc_repair.format_human(result),
+        "analysis_json": result,
+    }
+
+
+def command_file_error(root: Path, mode: str, message: str) -> dict[str, Any]:
+    return {
+        "mode": mode,
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": message,
+    }
+
+
+def resolve_existing_file(root: Path, target: str) -> Path | None:
+    path = Path(target).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    if path.exists() and path.is_file():
+        return path
+    return None
+
+
+def read_target_or_literal(root: Path, target: str) -> str:
+    path = resolve_existing_file(root, target)
+    if path is not None:
+        return path.read_text(encoding="utf-8")
+    return target
+
+
 def load_chc_check():
-    script = Path(__file__).resolve().with_name("chc_check.py")
-    spec = importlib.util.spec_from_file_location("chc_check", script)
+    return load_script_module("chc_check")
+
+
+def load_script_module(name: str):
+    script = Path(__file__).resolve().with_name(f"{name}.py")
+    spec = importlib.util.spec_from_file_location(name, script)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load checker from {script}")
+        raise RuntimeError(f"Unable to load script module from {script}")
     module = importlib.util.module_from_spec(spec)
-    sys.modules["chc_check"] = module
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -274,12 +371,18 @@ def command_result(root: Path, mode: str, target: str | None = None) -> dict[str
         return explain_result(root)
     if normalized == "check":
         return check_file(root, target)
+    if normalized == "analyze-design":
+        return analyze_design(root, target)
+    if normalized == "analyze-trace":
+        return analyze_trace(root, target)
+    if normalized == "repair":
+        return repair_file(root, target)
     return {
         "mode": "invalid",
         "enabled": read_project_enabled(root),
         "scope": "project",
         "state_path": str(project_state_path(root)),
-        "message": "Invalid mode. Use: on, off, status, explain, or check <file>.",
+        "message": "Invalid mode. Use: on, off, status, explain, check <file>, analyze-design <text-or-file>, analyze-trace <jsonl-file>, or repair <analysis-json>.",
     }
 
 
@@ -293,6 +396,8 @@ def format_command_human(result: dict[str, Any]) -> str:
         )
     if result["mode"] == "check" and "checker_output" in result:
         return f"{result['message']}\n{result['checker_output']}"
+    if result["mode"] in {"analyze-design", "analyze-trace", "repair"} and "analysis_output" in result:
+        return f"{result['message']}\n{result['analysis_output']}"
     status = "enabled" if result.get("enabled") else "disabled"
     return (
         f"{result['message']}\n"

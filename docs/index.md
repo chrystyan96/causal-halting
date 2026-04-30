@@ -58,10 +58,34 @@ and then changes itself because of the answer
 
 Causal Halting gives a way to notice that boundary before it becomes an architectural habit.
 
+## Beyond A Warning Label
+
+The current plugin adds three practical workflows:
+
+```text
+analyze-design  infer a CHC graph from an agent/workflow design
+analyze-trace   deterministically check JSONL execution events
+repair          convert same-run feedback into an orchestrator/future-run boundary
+```
+
+This moves the project from architectural hygiene toward causal verification:
+
+```text
+infer graph -> classify feedback -> propose repair -> state proof obligation
+```
+
+The proof obligation is simple:
+
+```text
+A prediction result about an execution must not be consumed by that same
+execution before it ends.
+```
+
 ## Project Links
 
 - Repository: [github.com/chrystyan96/causal-halting](https://github.com/chrystyan96/causal-halting)
 - Technical note: [CHC-0 technical overview](./chc-0.md)
+- Evaluation notes: [measuring answer quality](./evaluation.md)
 - Publication status: [submissions and links](./publication.md)
 - OpenAI Skills PR: [openai/skills#380](https://github.com/openai/skills/pull/380)
 

@@ -129,6 +129,58 @@ class CausalHaltingSessionGuardTests(unittest.TestCase):
         self.assertEqual(result["mode"], "check")
         self.assertIn("File not found", result["message"])
 
+    def test_analyze_design_command_reports_inferred_paradox(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = chc_session_guard.command_result(
+                Path(tmp),
+                "analyze-design",
+                "The current execution changes strategy when a supervisor predicts it will not finish.",
+            )
+
+        self.assertEqual(result["mode"], "analyze-design")
+        self.assertEqual(result["classification"], "causal_paradox")
+        self.assertIn("classification: causal_paradox", result["analysis_output"])
+
+    def test_analyze_trace_command_reports_feedback_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trace.jsonl"
+            path.write_text(
+                "\n".join(
+                    [
+                        '{"type":"exec_start","exec_id":"run-1","program":"AgentRun","input":"task-a"}',
+                        '{"type":"observe","observer":"Supervisor","target_exec_id":"run-1","result_id":"r-1"}',
+                        '{"type":"control","result_id":"r-1","controlled_exec_id":"run-1","action":"change_strategy"}',
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            result = chc_session_guard.command_result(Path(tmp), "analyze-trace", str(path))
+
+        self.assertEqual(result["mode"], "analyze-trace")
+        self.assertEqual(result["classification"], "causal_paradox")
+        self.assertIn("feedback_paths:", result["analysis_output"])
+
+    def test_repair_command_reports_proof_obligation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "analysis.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "classification": "causal_paradox",
+                        "inferred_graph": [
+                            "E(AgentRun,input) -> R(AgentRun,input)",
+                            "R(AgentRun,input) -> E(AgentRun,input)",
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = chc_session_guard.command_result(Path(tmp), "repair", str(path))
+
+        self.assertEqual(result["mode"], "repair")
+        self.assertEqual(result["classification"], "causal_paradox")
+        self.assertIn("proof_obligations:", result["analysis_output"])
+
 
 if __name__ == "__main__":
     unittest.main()

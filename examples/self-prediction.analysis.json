@@ -1,0 +1,26 @@
+{
+  "classification": "causal_paradox",
+  "explanation": "The design lets a prediction about the current execution control that same execution.",
+  "inferred_graph": [
+    "E(AgentRun,input) -> R(AgentRun,input)",
+    "R(AgentRun,input) -> E(AgentRun,input)"
+  ],
+  "repair": [
+    "Move the prediction result to an external orchestrator."
+  ],
+  "roles": {
+    "Code": [
+      "AgentRun"
+    ],
+    "Exec": [
+      "AgentRun(input)"
+    ],
+    "H": [
+      "SupervisorPrediction"
+    ],
+    "HaltResult": [
+      "PredictionResult(AgentRun,input)"
+    ]
+  },
+  "uncertain_edges": []
+}
