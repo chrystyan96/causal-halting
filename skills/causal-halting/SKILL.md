@@ -200,10 +200,6 @@ examples/design-ir-corpus/ multilingual DesignIR extraction fixtures
 
 ## References
 
-
-```text
-```
-
 For formal rules, theorem statements, and the current paper draft, read:
 
 ```text

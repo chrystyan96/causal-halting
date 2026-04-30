@@ -42,16 +42,6 @@ Official Codex plugin proposal package:
 
 [codex-plugin-official-proposal.md](https://github.com/chrystyan96/causal-halting/blob/master/submissions/codex-plugin-official-proposal.md)
 
-
-Published post:
-
-
-
-
-
-The shorter first-post version is:
-
-
 ## LinkedIn Draft
 
 The LinkedIn summary draft is maintained at:
