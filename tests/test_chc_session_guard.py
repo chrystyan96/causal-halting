@@ -1,8 +1,10 @@
 import importlib.util
+import io
 import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 
@@ -141,6 +143,34 @@ class CausalHaltingSessionGuardTests(unittest.TestCase):
         self.assertEqual(result["classification"], "causal_paradox")
         self.assertIn("classification: causal_paradox", result["analysis_output"])
 
+    def test_cli_analyze_design_accepts_text_with_spaces(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with redirect_stdout(io.StringIO()):
+                exit_code = chc_session_guard.main(
+                    [
+                        "analyze-design",
+                        "The",
+                        "current",
+                        "execution",
+                        "changes",
+                        "strategy",
+                        "when",
+                        "a",
+                        "supervisor",
+                        "predicts",
+                        "it",
+                        "will",
+                        "not",
+                        "finish.",
+                        "--cwd",
+                        tmp,
+                        "--format",
+                        "json",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+
     def test_analyze_trace_command_reports_feedback_path(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "trace.jsonl"
@@ -180,6 +210,54 @@ class CausalHaltingSessionGuardTests(unittest.TestCase):
         self.assertEqual(result["mode"], "repair")
         self.assertEqual(result["classification"], "causal_paradox")
         self.assertIn("proof_obligations:", result["analysis_output"])
+
+    def test_verify_repair_command_reports_passed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            before = Path(tmp) / "before.jsonl"
+            after = Path(tmp) / "after.jsonl"
+            before.write_text(
+                "\n".join(
+                    [
+                        '{"type":"exec_start","exec_id":"run-1","program":"AgentRun","input":"task-a"}',
+                        '{"type":"observe","observer":"Supervisor","target_exec_id":"run-1","result_id":"r-1"}',
+                        '{"type":"consume","result_id":"r-1","consumer_exec_id":"run-1","purpose":"strategy_change"}',
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            after.write_text(
+                "\n".join(
+                    [
+                        '{"type":"exec_start","exec_id":"run-1","program":"AgentRun","input":"task-a"}',
+                        '{"type":"exec_start","exec_id":"run-2","program":"AgentRun","input":"task-a-retry"}',
+                        '{"type":"observe","observer":"Supervisor","target_exec_id":"run-1","result_id":"r-1"}',
+                        '{"type":"consume","result_id":"r-1","consumer_exec_id":"run-2","purpose":"schedule_retry"}',
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            result = chc_session_guard.command_result(Path(tmp), "verify-repair", f"{before} {after}")
+
+        self.assertEqual(result["mode"], "verify-repair")
+        self.assertEqual(result["classification"], "passed")
+
+    def test_adapt_workflow_command_outputs_events(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workflow = Path(tmp) / "workflow.json"
+            workflow.write_text(
+                json.dumps(
+                    {
+                        "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
+                        "observations": [{"observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}],
+                        "controls": [{"result": "r-1", "target_exec": "run-1", "purpose": "strategy_change"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = chc_session_guard.command_result(Path(tmp), "adapt-workflow", str(workflow))
+
+        self.assertEqual(result["mode"], "adapt-workflow")
+        self.assertIn('"type": "exec_start"', result["analysis_output"])
 
 
 if __name__ == "__main__":

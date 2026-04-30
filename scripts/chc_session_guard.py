@@ -293,6 +293,64 @@ def repair_file(root: Path, target: str | None) -> dict[str, Any]:
     }
 
 
+def adapt_workflow(root: Path, target: str | None) -> dict[str, Any]:
+    if not target:
+        return command_file_error(root, "adapt-workflow", "Missing workflow JSON file path. Usage: /causal-halting adapt-workflow <workflow-json>")
+
+    path = resolve_existing_file(root, target)
+    if path is None:
+        return command_file_error(root, "adapt-workflow", f"File not found: {root / target}")
+
+    adapter = load_script_module("chc_workflow_adapter")
+    try:
+        workflow = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return command_file_error(root, "adapt-workflow", f"Invalid workflow JSON: {exc}")
+    errors = adapter.validate_workflow(workflow if isinstance(workflow, dict) else {})
+    if errors:
+        return command_file_error(root, "adapt-workflow", "; ".join(errors))
+    events = adapter.workflow_to_events(workflow)
+    return {
+        "mode": "adapt-workflow",
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": f"Converted workflow {path} to CHC trace events.",
+        "classification": "not_analyzed",
+        "analysis_output": adapter.format_jsonl(events),
+        "analysis_json": {"events": events},
+    }
+
+
+def verify_repair(root: Path, target: str | None) -> dict[str, Any]:
+    if not target:
+        return command_file_error(root, "verify-repair", "Missing trace paths. Usage: /causal-halting verify-repair <before-jsonl> <after-jsonl>")
+
+    parts = target.split()
+    if len(parts) != 2:
+        return command_file_error(root, "verify-repair", "verify-repair requires exactly two trace file paths.")
+    before = resolve_existing_file(root, parts[0])
+    after = resolve_existing_file(root, parts[1])
+    if before is None or after is None:
+        return command_file_error(root, "verify-repair", "One or both trace files were not found.")
+
+    verifier = load_script_module("chc_verify_repair")
+    result = verifier.verify_repair(
+        before.read_text(encoding="utf-8"),
+        after.read_text(encoding="utf-8"),
+    )
+    return {
+        "mode": "verify-repair",
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": f"Verified repair {before} -> {after}",
+        "classification": result["verification"],
+        "analysis_output": verifier.format_human(result),
+        "analysis_json": result,
+    }
+
+
 def command_file_error(root: Path, mode: str, message: str) -> dict[str, Any]:
     return {
         "mode": mode,
@@ -377,12 +435,16 @@ def command_result(root: Path, mode: str, target: str | None = None) -> dict[str
         return analyze_trace(root, target)
     if normalized == "repair":
         return repair_file(root, target)
+    if normalized == "adapt-workflow":
+        return adapt_workflow(root, target)
+    if normalized == "verify-repair":
+        return verify_repair(root, target)
     return {
         "mode": "invalid",
         "enabled": read_project_enabled(root),
         "scope": "project",
         "state_path": str(project_state_path(root)),
-        "message": "Invalid mode. Use: on, off, status, explain, check <file>, analyze-design <text-or-file>, analyze-trace <jsonl-file>, or repair <analysis-json>.",
+        "message": "Invalid mode. Use: on, off, status, explain, check <file>, analyze-design <text-or-file>, analyze-trace <jsonl-file>, repair <analysis-json>, adapt-workflow <workflow-json>, or verify-repair <before> <after>.",
     }
 
 
@@ -396,7 +458,7 @@ def format_command_human(result: dict[str, Any]) -> str:
         )
     if result["mode"] == "check" and "checker_output" in result:
         return f"{result['message']}\n{result['checker_output']}"
-    if result["mode"] in {"analyze-design", "analyze-trace", "repair"} and "analysis_output" in result:
+    if result["mode"] in {"analyze-design", "analyze-trace", "repair", "adapt-workflow", "verify-repair"} and "analysis_output" in result:
         return f"{result['message']}\n{result['analysis_output']}"
     status = "enabled" if result.get("enabled") else "disabled"
     return (
@@ -410,7 +472,7 @@ def format_command_human(result: dict[str, Any]) -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Causal Halting hook/session guard.")
     parser.add_argument("mode_arg", nargs="?", help="Workspace session mode: on, off, or status.")
-    parser.add_argument("target_arg", nargs="?", help="File path for check mode.")
+    parser.add_argument("target_args", nargs="*", help="File path or text for command mode.")
     parser.add_argument("--mode", help="Manage workspace session mode: on, off, or status.")
     parser.add_argument("--target", help="File path for check mode.")
     parser.add_argument("--cwd", help="Workspace directory for command mode. Defaults to current directory.")
@@ -426,7 +488,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     mode = args.mode if args.mode is not None else args.mode_arg
-    target = args.target if args.target is not None else args.target_arg
+    target = args.target if args.target is not None else (" ".join(args.target_args) if args.target_args else None)
     if mode is not None or args.format != "hook":
         root = Path(args.cwd).expanduser() if args.cwd else Path.cwd()
         result = command_result(root, mode or "status", target)

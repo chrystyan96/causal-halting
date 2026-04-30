@@ -138,6 +138,8 @@ causal-halting/
         diagonal.chc
         diagonal.graph
         future-run.trace.jsonl
+        generic-workflow.json
+        post-end-audit.trace.jsonl
         qe-valid-acyclic.chc
         safe-supervisor.graph
         self-prediction.analysis.json
@@ -150,6 +152,8 @@ causal-halting/
         chc_design_schema.py
         chc_repair.py
         chc_trace_check.py
+        chc_verify_repair.py
+        chc_workflow_adapter.py
   scripts/
     chc_check.py
     chc_design_analyze.py
@@ -157,11 +161,15 @@ causal-halting/
     chc_repair.py
     chc_session_guard.py
     chc_trace_check.py
+    chc_verify_repair.py
+    chc_workflow_adapter.py
     evaluate_responses.py
   examples/
     diagonal.chc
     diagonal.graph
     future-run.trace.jsonl
+    generic-workflow.json
+    post-end-audit.trace.jsonl
     qe-valid-acyclic.chc
     safe-supervisor.graph
     self-prediction.analysis.json
@@ -219,6 +227,8 @@ python scripts/chc_check.py --format json examples/diagonal.graph
 python scripts/chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
 python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
 python scripts/chc_repair.py examples/self-prediction.analysis.json
+python scripts/chc_workflow_adapter.py examples/generic-workflow.json
+python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
 ```
 
 The portable skill package also includes the checker:
@@ -230,6 +240,8 @@ python scripts\chc_check.py --format json examples\diagonal.graph
 python scripts\chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
 python scripts\chc_trace_check.py examples\self-prediction.trace.jsonl
 python scripts\chc_repair.py examples\self-prediction.analysis.json
+python scripts\chc_workflow_adapter.py examples\generic-workflow.json
+python scripts\chc_verify_repair.py examples\self-prediction.trace.jsonl examples\future-run.trace.jsonl
 ```
 
 ## Checker Input Formats
@@ -436,12 +448,14 @@ The run asks whether this same run halts and then uses the answer to control its
 
 ## From Hygiene To Verification
 
-Version 1.4 extends the project beyond a prompt-level warning label. It adds three explicit analysis workflows:
+Version 1.5 extends the project beyond a prompt-level warning label. It adds explicit analysis workflows:
 
 ```text
 /causal-halting analyze-design <text-or-file>
 /causal-halting analyze-trace <jsonl-file>
 /causal-halting repair <analysis-json>
+/causal-halting adapt-workflow <workflow-json>
+/causal-halting verify-repair <trace-before> <trace-after>
 ```
 
 The intent is to move from:
@@ -453,12 +467,12 @@ The intent is to move from:
 to:
 
 ```text
-infer a causal graph -> classify feedback -> propose a safer boundary -> state proof obligations
+extract DesignIR -> classify deterministically -> verify trace -> propose repair -> verify before/after
 ```
 
 ### Design Analysis
 
-Use `analyze-design` when the input is a natural-language design sketch:
+Use `analyze-design` when the input is a natural-language design sketch or explicit `DesignIR` JSON:
 
 ```powershell
 python scripts/chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
@@ -482,6 +496,30 @@ Example output:
 
 If the design mentions observation but does not say where the result flows, the analyzer returns `insufficient_info` instead of guessing.
 
+The important boundary:
+
+```text
+Natural language -> inferred DesignIR
+DesignIR -> deterministic classification
+```
+
+Minimal `DesignIR`:
+
+```json
+{
+  "executions": [
+    {"id": "run-1", "program": "AgentRun", "input": "task"}
+  ],
+  "observations": [
+    {"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}
+  ],
+  "controls": [
+    {"result": "r-1", "target_exec": "run-1", "action": "change_strategy"}
+  ],
+  "uncertain": []
+}
+```
+
 ### Trace Analysis
 
 Use `analyze-trace` when the input is an execution/event trace. The deterministic JSONL schema is:
@@ -489,7 +527,8 @@ Use `analyze-trace` when the input is an execution/event trace. The deterministi
 ```json
 {"type":"exec_start","exec_id":"run-1","program":"AgentRun","input":"task-a"}
 {"type":"observe","observer":"Supervisor","target_exec_id":"run-1","result_id":"r-1"}
-{"type":"control","result_id":"r-1","controlled_exec_id":"run-1","action":"change_strategy"}
+{"type":"consume","result_id":"r-1","consumer_exec_id":"run-1","purpose":"strategy_change"}
+{"type":"exec_end","exec_id":"run-1","status":"halted"}
 ```
 
 Run:
@@ -498,7 +537,23 @@ Run:
 python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
 ```
 
-The trace is a `causal_paradox` when a result produced by observing `run-1` controls `run-1` itself. It is `valid_acyclic` when that result controls a different run, a future run, or an external controller.
+The trace is a `causal_paradox` when a result produced by observing `run-1` is consumed by `run-1` before `run-1` ends. It is `valid_acyclic` when that result is consumed by a different run, a future run, an external controller, or only for audit/logging after completion.
+
+### Workflow Adapter
+
+Use `adapt-workflow` for a generic workflow JSON file:
+
+```powershell
+python scripts/chc_workflow_adapter.py examples/generic-workflow.json
+```
+
+This converts:
+
+```text
+executions + observations + controls
+```
+
+into trace events that can be passed to `chc_trace_check.py`.
 
 ### Repair Reports
 
@@ -523,6 +578,24 @@ Proof obligation:
 ```
 
 This still does not prove arbitrary termination. The gain is narrower and practical: it turns self-prediction loops into explicit architecture boundaries that can be reviewed and tested.
+
+### Repair Verification
+
+Use `verify-repair` to compare before/after traces:
+
+```powershell
+python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
+```
+
+Expected result:
+
+```text
+before_classification: causal_paradox
+after_classification: valid_acyclic
+verification: passed
+```
+
+This makes the repair testable: the after trace must no longer contain same-execution pre-end consumption of its own prediction result.
 
 ## Using The Codex Skill
 
@@ -615,6 +688,18 @@ To generate a causal repair report:
 
 ```text
 /causal-halting repair examples/self-prediction.analysis.json
+```
+
+To convert generic workflow JSON into trace events:
+
+```text
+/causal-halting adapt-workflow examples/generic-workflow.json
+```
+
+To verify that a repair removed the causal paradox:
+
+```text
+/causal-halting verify-repair examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
 ```
 
 The same state can also be changed through explicit text commands, which are handled by the hook when a slash command is unavailable:
@@ -913,6 +998,8 @@ python scripts\evaluate_responses.py
 python scripts\chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
 python scripts\chc_trace_check.py examples\self-prediction.trace.jsonl
 python scripts\chc_repair.py examples\self-prediction.analysis.json
+python scripts\chc_workflow_adapter.py examples\generic-workflow.json
+python scripts\chc_verify_repair.py examples\self-prediction.trace.jsonl examples\future-run.trace.jsonl
 ```
 
 Expected:
@@ -949,8 +1036,9 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 - The checker analyzes explicit CHC-0 artifacts only: graph DSL and mini-CHC syntax.
 - The checker detects CHC-0 causal graph failures only; it does not prove arbitrary termination or divergence.
 - The checker does not perform semantic halting analysis.
-- The design analyzer is conservative and should be treated as an inferred model, not a proof.
+- The design analyzer is conservative; natural-language input is first converted to inferred `DesignIR`, and only the `DesignIR` classification is deterministic.
 - The trace analyzer is deterministic, but only for traces that follow the documented event schema.
+- The workflow adapter supports a small generic JSON schema first; framework-specific adapters remain future work.
 - The repair engine proposes architecture boundaries and proof obligations; it does not patch arbitrary application code.
 - The evaluation harness scores response shape with transparent text checks; it is not a model-graded benchmark.
 - The mini-CHC parser supports only v1 canonical syntax.

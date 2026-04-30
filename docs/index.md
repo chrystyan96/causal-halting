@@ -63,15 +63,17 @@ Causal Halting gives a way to notice that boundary before it becomes an architec
 The current plugin adds three practical workflows:
 
 ```text
-analyze-design  infer a CHC graph from an agent/workflow design
+analyze-design  infer DesignIR from a design, then classify it deterministically
 analyze-trace   deterministically check JSONL execution events
+adapt-workflow  convert generic workflow JSON into CHC trace events
 repair          convert same-run feedback into an orchestrator/future-run boundary
+verify-repair   compare before/after traces
 ```
 
 This moves the project from architectural hygiene toward causal verification:
 
 ```text
-infer graph -> classify feedback -> propose repair -> state proof obligation
+extract DesignIR -> classify feedback -> propose repair -> verify before/after trace
 ```
 
 The proof obligation is simple:

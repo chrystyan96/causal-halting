@@ -1,0 +1,23 @@
+{
+  "controls": [
+    {
+      "purpose": "strategy_change",
+      "result": "r-1",
+      "target_exec": "run-1"
+    }
+  ],
+  "executions": [
+    {
+      "id": "run-1",
+      "input": "task-a",
+      "program": "AgentRun"
+    }
+  ],
+  "observations": [
+    {
+      "observer": "Supervisor",
+      "result": "r-1",
+      "target_exec": "run-1"
+    }
+  ]
+}

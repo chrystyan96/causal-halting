@@ -22,12 +22,16 @@ class PortableSkillPackageTests(unittest.TestCase):
             "scripts/chc_design_schema.py",
             "scripts/chc_trace_check.py",
             "scripts/chc_repair.py",
+            "scripts/chc_workflow_adapter.py",
+            "scripts/chc_verify_repair.py",
             "examples/diagonal.chc",
             "examples/diagonal.graph",
             "examples/qe-valid-acyclic.chc",
             "examples/safe-supervisor.graph",
             "examples/self-prediction.trace.jsonl",
             "examples/future-run.trace.jsonl",
+            "examples/generic-workflow.json",
+            "examples/post-end-audit.trace.jsonl",
             "examples/self-prediction.analysis.json",
         ]
 
@@ -42,6 +46,8 @@ class PortableSkillPackageTests(unittest.TestCase):
             "chc_design_schema.py",
             "chc_trace_check.py",
             "chc_repair.py",
+            "chc_workflow_adapter.py",
+            "chc_verify_repair.py",
         ):
             root_checker = (REPO_ROOT / "scripts" / script_name).read_text(encoding="utf-8")
             skill_checker = (SKILL_ROOT / "scripts" / script_name).read_text(encoding="utf-8")

@@ -42,7 +42,8 @@ To use the CHC-0 lens for every relevant question in the current session, the us
    - Branching on ordinary `Bool` adds no causal edge.
    - L0 calls add no causal edge.
    - CHC calls inline their body and accumulate edges.
-   - For natural-language designs, mark the graph as inferred and record uncertain edges.
+   - For natural-language designs, first infer `DesignIR`, then classify deterministically from that IR.
+   - For explicit `DesignIR`, do not rely on prose heuristics.
    - For JSONL traces, use event identity (`exec_id`, `result_id`) rather than prose inference.
 
 5. Check `acyclic_unif`.
@@ -118,7 +119,7 @@ CHC-0 does not decide all halting questions.
 
 Use `scripts/chc_check.py` for explicit graph DSL or mini-CHC artifacts. The checker uses Python standard library only.
 
-Use `scripts/chc_design_analyze.py` for explicit design text, `scripts/chc_trace_check.py` for JSONL traces, and `scripts/chc_repair.py` for causal repair reports.
+Use `scripts/chc_design_analyze.py` for explicit design text or `DesignIR`, `scripts/chc_trace_check.py` for JSONL traces, `scripts/chc_workflow_adapter.py` for generic workflow JSON, `scripts/chc_repair.py` for causal repair reports, and `scripts/chc_verify_repair.py` for before/after trace verification.
 
 Run from the skill root:
 
@@ -129,6 +130,8 @@ python scripts/chc_check.py examples/qe-valid-acyclic.chc
 python scripts/chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
 python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
 python scripts/chc_repair.py examples/self-prediction.analysis.json
+python scripts/chc_workflow_adapter.py examples/generic-workflow.json
+python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
 ```
 
 Classify checker output as follows:
@@ -151,6 +154,8 @@ examples/qe-valid-acyclic.chc  H-free semantic hard case
 examples/safe-supervisor.graph supervisor observes separate worker
 examples/self-prediction.trace.jsonl same-run feedback trace
 examples/future-run.trace.jsonl safe future-run trace
+examples/post-end-audit.trace.jsonl safe post-run audit trace
+examples/generic-workflow.json generic workflow adapter input
 examples/self-prediction.analysis.json repair input
 ```
 

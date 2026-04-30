@@ -1,7 +1,7 @@
 {
   "name": "causal-halting",
-  "version": "1.4.0",
-  "description": "A Codex skill, prompt guard, checker, trace analyzer, and repair workflow for detecting and refactoring prediction-feedback loops.",
+  "version": "1.5.0",
+  "description": "A Codex skill, prompt guard, checker, DesignIR analyzer, trace analyzer, workflow adapter, and repair verifier for prediction-feedback loops.",
   "author": {
     "name": "Chrystyan Byrnes",
     "url": "https://github.com/chrystyan96/causal-halting"
@@ -23,7 +23,7 @@
   "interface": {
     "displayName": "Causal Halting",
     "shortDescription": "Analyze and refactor prediction-feedback loops in agent systems.",
-    "longDescription": "Causal Halting packages a Codex skill, low-cost UserPromptSubmit context guard, CHC-0 reference notes, explicit graph checker, design analyzer, deterministic trace analyzer, and repair workflow for separating structural prediction-feedback cycles from ordinary semantic undecidability.",
+    "longDescription": "Causal Halting packages a Codex skill, low-cost UserPromptSubmit context guard, CHC-0 reference notes, explicit graph checker, DesignIR-based design analyzer, deterministic trace analyzer, workflow adapter, repair workflow, and before/after repair verifier for separating structural prediction-feedback cycles from ordinary semantic undecidability.",
     "developerName": "Chrystyan Byrnes",
     "category": "Developer Tools",
     "capabilities": [
@@ -39,6 +39,7 @@
       "Check this halting-style graph for feedback.",
       "Analyze this agent trace for current-run prediction feedback.",
       "Repair this causal_paradox into a safe orchestrator boundary.",
+      "Verify this before/after trace repair.",
       "Separate causal_paradox from unproved."
     ],
     "brandColor": "#2563EB"

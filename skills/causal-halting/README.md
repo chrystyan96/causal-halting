@@ -38,10 +38,14 @@ causal-halting/
     chc_design_schema.py
     chc_trace_check.py
     chc_repair.py
+    chc_workflow_adapter.py
+    chc_verify_repair.py
   examples/
     diagonal.chc
     diagonal.graph
     future-run.trace.jsonl
+    generic-workflow.json
+    post-end-audit.trace.jsonl
     qe-valid-acyclic.chc
     safe-supervisor.graph
     self-prediction.analysis.json
@@ -105,6 +109,8 @@ python scripts/chc_check.py examples/safe-supervisor.graph
 python scripts/chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
 python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
 python scripts/chc_repair.py examples/self-prediction.analysis.json
+python scripts/chc_workflow_adapter.py examples/generic-workflow.json
+python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
 ```
 
 Checker classifications:
@@ -172,13 +178,15 @@ The supervisor observes a separate worker. The result does not feed back into th
 
 ## Design, Trace, And Repair Workflows
 
-The portable skill also includes the v1.4 analysis scripts:
+The portable skill also includes the v1.5 analysis scripts:
 
 ```text
-chc_design_analyze.py  infer a causal graph from explicit design text
+chc_design_analyze.py  infer DesignIR from text or analyze explicit DesignIR JSON
 chc_design_schema.py   validate design-analysis JSON
 chc_trace_check.py     deterministically analyze JSONL execution traces
 chc_repair.py          generate repair reports and proof obligations
+chc_workflow_adapter.py convert generic workflow JSON to CHC trace JSONL
+chc_verify_repair.py   verify before/after trace repair
 ```
 
 Trace schema:
@@ -186,7 +194,8 @@ Trace schema:
 ```json
 {"type":"exec_start","exec_id":"run-1","program":"AgentRun","input":"task-a"}
 {"type":"observe","observer":"Supervisor","target_exec_id":"run-1","result_id":"r-1"}
-{"type":"control","result_id":"r-1","controlled_exec_id":"run-1","action":"change_strategy"}
+{"type":"consume","result_id":"r-1","consumer_exec_id":"run-1","purpose":"strategy_change"}
+{"type":"exec_end","exec_id":"run-1","status":"halted"}
 ```
 
 Repair reports move same-run prediction feedback to a separate orchestrator/future-run boundary and emit the proof obligation that the observed execution must not consume its own prediction result before it ends.
@@ -196,8 +205,9 @@ Repair reports move same-run prediction feedback to a separate orchestrator/futu
 - Does not solve the classical Halting Problem.
 - Does not prove arbitrary termination or divergence.
 - Checks explicit CHC-0 graph DSL and mini-CHC artifacts only.
-- Infers design graphs conservatively and marks ambiguous cases as `insufficient_info`.
+- Infers `DesignIR` conservatively from text; deterministic classification starts from `DesignIR`.
 - Deterministically checks traces only when they follow the documented JSONL schema.
+- Converts only the documented generic workflow JSON format; framework adapters are future work.
 - Produces causal refactoring guidance, not arbitrary code patches.
 - Treats semantic undecidability as `unproved`, not as `causal_paradox`.
 - Does not include the full Codex plugin hook or `/causal-halting` slash command. Those live in the full plugin repository.

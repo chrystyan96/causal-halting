@@ -67,9 +67,16 @@ def repair_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
 
     obligation = {
         "obligation": "prediction_result_not_consumed_by_observed_execution",
+        "result_id": result_node,
         "target_exec_id": target_exec,
+        "forbidden_consumer_exec_id": target_exec,
         "forbidden_consumer": target_exec,
         "allowed_consumers": DEFAULT_ALLOWED_CONSUMERS,
+        "valid_if": [
+            "consumer is external_orchestrator",
+            "consumer exec starts after observed exec ends",
+            "result is audit_only",
+        ],
     }
 
     return {
