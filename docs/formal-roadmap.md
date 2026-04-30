@@ -80,6 +80,8 @@ Remaining theorem work:
 
 ## CHC-3: Processes, Supervisors, And Sessions
 
+V3.0 operational status: implemented as `chc_process_check.py` over structured `ProcessIR`.
+
 Goal: model agents, supervisors, workers, monitors, and orchestrators as typed processes.
 
 Separate identities:
@@ -100,6 +102,8 @@ observation result of E cannot flow into control channel of E before E ends
 This is where CHC connects most directly to session types and information-flow security.
 
 ## CHC-4: Temporal And Distributed Traces
+
+V3.0 operational status: implemented as `chc_temporal_check.py` over temporal JSONL traces.
 
 Goal: reason over observed execution traces rather than only static terms.
 
@@ -122,6 +126,8 @@ Temporal facts:
 - missing end events are treated conservatively.
 
 ## CHC-5: Probabilistic And AI Predictions
+
+V3.0 operational status: implemented as `chc_prediction_check.py` over structured `PredictionIR`.
 
 Goal: generalize `HaltResult` to broader `PredictionResult` values.
 
@@ -172,4 +178,4 @@ Order:
 6. Prove the boundary theorem.
 7. Extend to CHC-1 effect summaries.
 
-The proof assistant work should start after CHC-1 is precise enough to avoid proving the wrong abstraction.
+V3.0 starts this track under `formal/lean/` with a CHC-0 diagonal feedback skeleton. Full CHC-1/2 proofs remain future work.

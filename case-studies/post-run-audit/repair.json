@@ -1,0 +1,9 @@
+{
+  "proof_obligations": [
+    {
+      "forbidden_consumer_exec_id": "run-1",
+      "obligation": "prediction_result_not_consumed_by_observed_execution",
+      "result_id": "r-1"
+    }
+  ]
+}

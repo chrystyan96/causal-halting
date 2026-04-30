@@ -1,0 +1,3 @@
+{"type":"exec_start","exec_id":"run-1","program":"AgentRun","input":"task"}
+{"type":"observe","observer":"Supervisor","target_exec_id":"run-1","result_id":"r-1"}
+{"type":"consume","result_id":"r-1","consumer_exec_id":"run-1","purpose":"change_strategy"}

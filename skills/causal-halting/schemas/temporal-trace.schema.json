@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CHC-4 Temporal Trace Event",
+  "type": "object",
+  "required": ["type"],
+  "properties": {
+    "type": {"type": "string"},
+    "timestamp": {"type": "string"},
+    "logical_clock": {},
+    "span_id": {"type": "string"},
+    "parent_id": {"type": "string"},
+    "trace_id": {"type": "string"},
+    "happens_before": {"type": "array", "items": {"type": "string"}}
+  }
+}

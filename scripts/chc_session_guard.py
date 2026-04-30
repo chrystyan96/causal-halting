@@ -268,6 +268,50 @@ def analyze_trace(root: Path, target: str | None) -> dict[str, Any]:
     }
 
 
+def analyze_json_file(root: Path, target: str | None, script_name: str, function_name: str, mode: str, usage: str) -> dict[str, Any]:
+    if not target:
+        return command_file_error(root, mode, usage)
+    path = resolve_existing_file(root, target)
+    if path is None:
+        return command_file_error(root, mode, f"File not found: {root / target}")
+    module = load_script_module(script_name)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return command_file_error(root, mode, f"Invalid JSON: {exc}")
+    result = getattr(module, function_name)(payload if isinstance(payload, dict) else {})
+    return {
+        "mode": mode,
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": f"Analyzed {path}",
+        "classification": result["classification"],
+        "analysis_output": json.dumps(result, indent=2, sort_keys=True),
+        "analysis_json": result,
+    }
+
+
+def analyze_temporal(root: Path, target: str | None) -> dict[str, Any]:
+    if not target:
+        return command_file_error(root, "analyze-temporal", "Missing temporal trace file path.")
+    path = resolve_existing_file(root, target)
+    if path is None:
+        return command_file_error(root, "analyze-temporal", f"File not found: {root / target}")
+    module = load_script_module("chc_temporal_check")
+    result = module.analyze_temporal_text(path.read_text(encoding="utf-8"))
+    return {
+        "mode": "analyze-temporal",
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": f"Analyzed temporal trace {path}",
+        "classification": result["classification"],
+        "analysis_output": json.dumps(result, indent=2, sort_keys=True),
+        "analysis_json": result,
+    }
+
+
 def repair_file(root: Path, target: str | None) -> dict[str, Any]:
     if not target:
         return command_file_error(root, "repair", "Missing analysis JSON file path. Usage: /causal-halting repair <analysis-json>")
@@ -383,6 +427,24 @@ def eval_design_ir(root: Path, target: str | None) -> dict[str, Any]:
     }
 
 
+def eval_suite(root: Path, target: str | None) -> dict[str, Any]:
+    corpus = resolve_existing_dir(root, target or "examples/design-ir-corpus")
+    if corpus is None:
+        return command_file_error(root, "eval-suite", "Corpus directory not found.")
+    evaluator = load_script_module("chc_eval_suite")
+    result = evaluator.evaluate_suite(corpus)
+    return {
+        "mode": "eval-suite",
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": f"Evaluated CHC suite {corpus}",
+        "classification": result["status"],
+        "analysis_output": json.dumps(result, indent=2, sort_keys=True),
+        "analysis_json": result,
+    }
+
+
 def verify_repair(root: Path, target: str | None) -> dict[str, Any]:
     if not target:
         return command_file_error(root, "verify-repair", "Missing trace paths. Usage: /causal-halting verify-repair <before-jsonl> <after-jsonl> [repair-json]")
@@ -421,6 +483,26 @@ def verify_repair(root: Path, target: str | None) -> dict[str, Any]:
         "classification": result["verification"],
         "analysis_output": verifier.format_human(result),
         "analysis_json": result,
+    }
+
+
+def certificate(root: Path, target: str | None) -> dict[str, Any]:
+    if not target:
+        return command_file_error(root, "certificate", "Missing trace paths. Usage: /causal-halting certificate <before-jsonl> <after-jsonl> [repair-json]")
+    verified = verify_repair(root, target)
+    if "analysis_json" not in verified:
+        return verified
+    module = load_script_module("chc_certificate")
+    cert = module.certificate_from_verification(verified["analysis_json"])
+    return {
+        "mode": "certificate",
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": "Generated repair certificate.",
+        "classification": cert["result"],
+        "analysis_output": json.dumps(cert, indent=2, sort_keys=True),
+        "analysis_json": cert,
     }
 
 
@@ -541,6 +623,26 @@ def command_result(root: Path, mode: str, target: str | None = None) -> dict[str
         return analyze_design(root, target)
     if normalized == "analyze-trace":
         return analyze_trace(root, target)
+    if normalized == "analyze-process":
+        return analyze_json_file(
+            root,
+            target,
+            "chc_process_check",
+            "analyze_process_ir",
+            "analyze-process",
+            "Missing ProcessIR JSON file path. Usage: /causal-halting analyze-process <process-ir-json>",
+        )
+    if normalized == "analyze-temporal":
+        return analyze_temporal(root, target)
+    if normalized == "analyze-prediction":
+        return analyze_json_file(
+            root,
+            target,
+            "chc_prediction_check",
+            "analyze_prediction_ir",
+            "analyze-prediction",
+            "Missing PredictionIR JSON file path. Usage: /causal-halting analyze-prediction <prediction-ir-json>",
+        )
     if normalized == "repair":
         return repair_file(root, target)
     if normalized == "adapt-workflow":
@@ -571,8 +673,12 @@ def command_result(root: Path, mode: str, target: str | None = None) -> dict[str
         )
     if normalized == "eval-design-ir":
         return eval_design_ir(root, target)
+    if normalized == "eval-suite":
+        return eval_suite(root, target)
     if normalized == "verify-repair":
         return verify_repair(root, target)
+    if normalized == "certificate":
+        return certificate(root, target)
     if normalized == "report":
         return report_file(root, target)
     return {
@@ -580,7 +686,7 @@ def command_result(root: Path, mode: str, target: str | None = None) -> dict[str
         "enabled": read_project_enabled(root),
         "scope": "project",
         "state_path": str(project_state_path(root)),
-        "message": "Invalid mode. Use: on, off, status, explain, check <file>, analyze-design <design-ir-json>, analyze-trace <jsonl-file>, repair <analysis-json>, adapt-workflow <workflow-json>, adapt-otel <otel-json>, adapt-langgraph <langgraph-json>, adapt-temporal-airflow <temporal-airflow-json>, eval-design-ir <corpus-dir>, verify-repair <before> <after> [repair-json], or report <analysis-json>.",
+        "message": "Invalid mode. Use: on, off, status, explain, check <file>, analyze-design <design-ir-json>, analyze-trace <jsonl-file>, analyze-process <process-ir-json>, analyze-temporal <temporal-jsonl>, analyze-prediction <prediction-ir-json>, repair <analysis-json>, adapt-workflow <workflow-json>, adapt-otel <otel-json>, adapt-langgraph <langgraph-json>, adapt-temporal-airflow <temporal-airflow-json>, eval-design-ir <corpus-dir>, eval-suite <corpus-dir>, verify-repair <before> <after> [repair-json], certificate <before> <after> [repair-json], or report <analysis-json>.",
     }
 
 
@@ -597,13 +703,18 @@ def format_command_human(result: dict[str, Any]) -> str:
     if result["mode"] in {
         "analyze-design",
         "analyze-trace",
+        "analyze-process",
+        "analyze-temporal",
+        "analyze-prediction",
         "repair",
         "adapt-workflow",
         "adapt-otel",
         "adapt-langgraph",
         "adapt-temporal-airflow",
         "eval-design-ir",
+        "eval-suite",
         "verify-repair",
+        "certificate",
         "report",
     } and "analysis_output" in result:
         return f"{result['message']}\n{result['analysis_output']}"

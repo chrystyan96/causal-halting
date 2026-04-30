@@ -24,6 +24,11 @@ from typing import Iterable
 
 MAX_EFFECT_ITERATIONS = 32
 
+CAPABILITY_BOUNDARY = {
+    "does_not_prove_arbitrary_termination": True,
+    "does_not_solve_classical_halting": True,
+}
+
 
 @dataclass(frozen=True)
 class Term:
@@ -364,9 +369,23 @@ class MiniCHCAnalyzer:
         self.definitions = definitions
         self.l0_names = l0_names
         self.effect_summaries: dict[str, list[Edge]] = {name: [] for name in definitions}
+        self.effect_summary_details: dict[str, dict[str, object]] = {
+            name: {
+                "summary_id": f"Eff({name})",
+                "function": name,
+                "edges": [],
+                "status": "not_needed",
+                "iteration_count": 0,
+                "max_iterations": MAX_EFFECT_ITERATIONS,
+                "widening_applied": False,
+                "conservative_reason": None,
+            }
+            for name in definitions
+        }
         self.fixed_point_status = "not_needed"
         self.higher_order_effects: list[dict[str, str]] = []
         self.effect_composition_status = "complete"
+        self.missing_effect_annotations: list[dict[str, str]] = []
         self.chc_level = "CHC-0"
         self.recursive_seen = False
 
@@ -386,12 +405,31 @@ class MiniCHCAnalyzer:
                 if next_key != previous[definition.name]:
                     changed = True
                     previous[definition.name] = next_key
-                self.effect_summaries[definition.name] = dedupe_edges(result.edges)
+                summary_edges = dedupe_edges(result.edges)
+                self.effect_summaries[definition.name] = summary_edges
+                self.effect_summary_details[definition.name].update(
+                    {
+                        "edges": [edge.to_string() for edge in summary_edges],
+                        "iteration_count": iteration + 1,
+                    }
+                )
             if not changed:
-                self.fixed_point_status = "converged" if status == "recursive" or self.recursive_seen else "not_needed"
+                self.fixed_point_status = "converged_exact" if self.recursive_seen else "not_needed"
+                for definition_name in self.definitions:
+                    self.effect_summary_details[definition_name]["status"] = self.fixed_point_status
                 return
             status = "recursive"
         self.fixed_point_status = "not_converged"
+        for definition_name in self.definitions:
+            self.effect_summary_details[definition_name].update(
+                {
+                    "status": "not_converged",
+                    "conservative_reason": (
+                        f"Effect summary for {definition_name} did not stabilize within "
+                        f"{MAX_EFFECT_ITERATIONS} iterations."
+                    ),
+                }
+            )
 
     def initial_env(self, definition: FunctionDef, args: list[Term | FunctionValue]) -> dict[str, TypeValue]:
         if len(args) != len(definition.params):
@@ -550,6 +588,9 @@ class MiniCHCAnalyzer:
             function = env[name].function
             if function is None or function.effect is None:
                 result.incomplete_higher_order = True
+                self.missing_effect_annotations.append(
+                    {"parameter": name, "required": "A -> B ! Eff", "reason": "Missing callback effect."}
+                )
                 raise InsufficientInfo(f"Higher-order function {name!r} is missing an explicit effect annotation.")
             self.chc_level = max_level(self.chc_level, "CHC-2")
             if not summary_mode or function.name in self.definitions:
@@ -626,6 +667,23 @@ def strip_outer_parens(expr: str) -> str:
 def max_level(left: str, right: str) -> str:
     order = {"CHC-0": 0, "CHC-1": 1, "CHC-2": 2}
     return left if order[left] >= order[right] else right
+
+
+def analysis_profile(
+    chc_level: str,
+    fixed_point_status: str = "not_needed",
+    effect_composition_status: str = "complete",
+) -> str:
+    if effect_composition_status == "incomplete" or chc_level == "CHC-2":
+        return "annotation_required_chc2"
+    if chc_level == "CHC-1" or fixed_point_status in {
+        "converged",
+        "converged_exact",
+        "converged_conservative",
+        "not_converged",
+    }:
+        return "conservative_chc1"
+    return "complete_for_chc0"
 
 
 Substitution = dict[str, Term]
@@ -727,6 +785,8 @@ def base_result(
     effect_composition_status: str = "complete",
     reachable_pairs: list[dict] | None = None,
     unifier: dict[str, str] | None = None,
+    effect_summary_details: dict[str, dict[str, object]] | None = None,
+    missing_effect_annotations: list[dict[str, str]] | None = None,
 ) -> dict:
     return {
         "classification": classification,
@@ -741,7 +801,11 @@ def base_result(
         },
         "fixed_point_status": fixed_point_status,
         "higher_order_effects": higher_order_effects or [],
+        "missing_effect_annotations": missing_effect_annotations or [],
         "effect_composition_status": effect_composition_status,
+        "effect_summary_details": effect_summary_details or {},
+        "analysis_profile": analysis_profile(chc_level, fixed_point_status, effect_composition_status),
+        "capability_boundary": dict(CAPABILITY_BOUNDARY),
         "explanation": explanation,
     }
 
@@ -755,6 +819,8 @@ def analyze_edges(
     fixed_point_status: str = "not_needed",
     higher_order_effects: list[dict[str, str]] | None = None,
     effect_composition_status: str = "complete",
+    effect_summary_details: dict[str, dict[str, object]] | None = None,
+    missing_effect_annotations: list[dict[str, str]] | None = None,
 ) -> dict:
     nodes = graph_nodes(edges)
     e_nodes = [node for node in nodes if node.kind == "E"]
@@ -790,6 +856,8 @@ def analyze_edges(
             effect_composition_status=effect_composition_status,
             reachable_pairs=reachable_pairs,
             unifier=first_paradox["unifier"],
+            effect_summary_details=effect_summary_details,
+            missing_effect_annotations=missing_effect_annotations,
         )
 
     return base_result(
@@ -803,6 +871,8 @@ def analyze_edges(
         higher_order_effects=higher_order_effects,
         effect_composition_status=effect_composition_status,
         reachable_pairs=reachable_pairs,
+        effect_summary_details=effect_summary_details,
+        missing_effect_annotations=missing_effect_annotations,
     )
 
 
@@ -816,15 +886,24 @@ def analyze_mini_chc(text: str) -> dict:
     analyzer = MiniCHCAnalyzer(definitions, l0_names)
     analyzer.compute_summaries()
     if analyzer.fixed_point_status == "not_converged":
+        first_reason = next(
+            (
+                str(summary.get("conservative_reason"))
+                for summary in analyzer.effect_summary_details.values()
+                if summary.get("conservative_reason")
+            ),
+            "CHC-1 effect summaries did not converge within the configured iteration limit.",
+        )
         return base_result(
             "insufficient_info",
             [],
             "not_analyzed",
-            "CHC-1 effect summaries did not converge within the configured iteration limit.",
+            first_reason,
             chc_level="CHC-1",
             effect_summaries=analyzer.effect_summaries,
             fixed_point_status=analyzer.fixed_point_status,
             effect_composition_status="incomplete",
+            effect_summary_details=analyzer.effect_summary_details,
         )
     name, args = run_target
     result = analyzer.run(name, args)
@@ -838,6 +917,8 @@ def analyze_mini_chc(text: str) -> dict:
         fixed_point_status=analyzer.fixed_point_status,
         higher_order_effects=analyzer.higher_order_effects + result.higher_order_effects,
         effect_composition_status=analyzer.effect_composition_status,
+        effect_summary_details=analyzer.effect_summary_details,
+        missing_effect_annotations=analyzer.missing_effect_annotations,
     )
 
 

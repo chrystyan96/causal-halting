@@ -5,7 +5,7 @@ description: This skill should be used when the user asks to analyze halting-pro
 
 # Causal Halting
 
-Use this skill to apply the Causal Halting Calculus (CHC-0/1/2) as an analysis method. CHC does not solve the classical Halting Problem. It separates two failure modes: structural prediction-feedback cycles (`causal_paradox`) and ordinary semantic undecidability (`unproved`).
+Use this skill to apply the Causal Halting Calculus (CHC-0/1/2/3/4/5) as an analysis method. CHC does not solve the classical Halting Problem. It separates two failure modes: structural prediction-feedback cycles (`causal_paradox`) and ordinary semantic undecidability (`unproved`).
 
 This skill is self-contained for publication through `openai/skills` and `npx skills`. It includes the formal reference, runnable checker, examples, and license inside this directory.
 
@@ -69,7 +69,14 @@ To use the CHC-0 lens for every relevant question in the current session, the us
    - Missing or incomplete higher-order effects are `insufficient_info`, not `valid_acyclic`.
    - `HaltResult` still cannot be passed into callbacks.
 
-8. When a `causal_paradox` is found in an agent/workflow design, suggest a causal refactoring.
+9. For V3 structured analyzers, use the correct artifact.
+   - CHC-3: `ProcessIR` for process/session non-interference.
+   - CHC-4: temporal JSONL traces with happens-before/span metadata.
+   - CHC-5: `PredictionIR` for probabilistic/scored predictions.
+   - If identity, timing, or effect data is missing, return `insufficient_info`.
+   - `valid_acyclic` never means the system terminates or is safe in general.
+
+10. When a `causal_paradox` is found in an agent/workflow design, suggest a causal refactoring.
    - Move prediction results to an external orchestrator or controller.
    - Make results affect future executions, not the observed execution.
    - Convert current-run self-prediction into post-run audit when possible.
@@ -128,7 +135,7 @@ CHC-0 does not decide all halting questions.
 
 Use `scripts/chc_check.py` for explicit graph DSL or Mini-CHC v2 artifacts. The checker uses Python standard library only and supports CHC-0/1/2 operational analysis.
 
-Use `scripts/chc_design_analyze.py` for explicit `DesignIR`, `scripts/chc_trace_check.py` for JSONL traces, `scripts/chc_workflow_adapter.py` for generic workflow JSON, `scripts/chc_otel_adapter.py` for explicitly annotated OpenTelemetry JSON, `scripts/chc_langgraph_adapter.py` for structured LangGraph-style JSON, `scripts/chc_temporal_airflow_adapter.py` for structured Temporal/Airflow-style JSON, `scripts/chc_eval_design_ir.py` for corpus fixture evaluation, `scripts/chc_repair.py` for causal repair reports, `scripts/chc_verify_repair.py` for before/after trace verification, and `scripts/chc_report.py` for Markdown/Mermaid reports.
+Use `scripts/chc_design_analyze.py` for explicit `DesignIR`, `scripts/chc_trace_check.py` for JSONL traces, `scripts/chc_process_check.py` for CHC-3 ProcessIR, `scripts/chc_temporal_check.py` for CHC-4 temporal traces, `scripts/chc_prediction_check.py` for CHC-5 PredictionIR, `scripts/chc_workflow_adapter.py` for generic workflow JSON, `scripts/chc_otel_adapter.py` for explicitly annotated OpenTelemetry JSON, `scripts/chc_langgraph_adapter.py` for structured LangGraph-style JSON, `scripts/chc_temporal_airflow_adapter.py` for structured Temporal/Airflow-style JSON, `scripts/chc_eval_design_ir.py` and `scripts/chc_eval_suite.py` for corpus fixture evaluation, `scripts/chc_repair.py` for causal repair reports, `scripts/chc_verify_repair.py` and `scripts/chc_certificate.py` for before/after trace verification and certificates, and `scripts/chc_report.py` for Markdown/Mermaid reports.
 
 Run from the skill root:
 
@@ -146,6 +153,11 @@ python scripts/chc_temporal_airflow_adapter.py examples/temporal-airflow-indirec
 python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
 python scripts/chc_report.py examples/self-prediction.analysis.json
 python scripts/chc_eval_design_ir.py examples/design-ir-corpus
+python scripts/chc_eval_suite.py examples/design-ir-corpus
+python scripts/chc_process_check.py examples/process-self-feedback.process-ir.json
+python scripts/chc_temporal_check.py examples/temporal-self-feedback.trace.jsonl
+python scripts/chc_prediction_check.py examples/prediction-self-risk.prediction-ir.json
+python scripts/chc_certificate.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl --repair examples/self-prediction.analysis.json
 ```
 
 Classify checker output as follows:
@@ -176,6 +188,9 @@ examples/generic-workflow.json generic workflow adapter input
 examples/otel-self-prediction.json annotated OpenTelemetry adapter input
 examples/langgraph-future-run.json structured LangGraph-style adapter input
 examples/temporal-airflow-indirect-feedback.json structured Temporal/Airflow-style adapter input
+examples/process-self-feedback.process-ir.json CHC-3 process/session feedback
+examples/temporal-self-feedback.trace.jsonl CHC-4 temporal feedback trace
+examples/prediction-self-risk.prediction-ir.json CHC-5 probabilistic feedback
 examples/self-prediction.design-ir.json explicit DesignIR input
 examples/self-prediction.analysis.json repair input
 examples/design-ir-corpus/ multilingual DesignIR extraction fixtures

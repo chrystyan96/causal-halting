@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CHC-5 PredictionResult",
+  "type": "object",
+  "required": ["result_id", "kind", "target_exec", "semantics"],
+  "properties": {
+    "result_id": {"type": "string"},
+    "kind": {
+      "enum": ["halt_prediction", "failure_risk", "confidence_score", "budget_prediction", "quality_prediction", "bounded_progress_metric"]
+    },
+    "target_exec": {"type": "string"},
+    "confidence": {"type": "number"},
+    "semantics": {"enum": ["probabilistic", "deterministic", "metric"]}
+  }
+}

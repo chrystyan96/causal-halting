@@ -14,7 +14,8 @@ def node_id(label: str) -> str:
     return "n_" + "".join(char if char.isalnum() else "_" for char in label)
 
 
-def graph_to_mermaid(edges: list[str]) -> str:
+def graph_to_mermaid(edges: list[str], highlighted_edges: set[str] | None = None) -> str:
+    highlighted_edges = highlighted_edges or set()
     lines = ["flowchart LR"]
     if not edges:
         lines.append('  empty["No causal edges"]')
@@ -23,8 +24,22 @@ def graph_to_mermaid(edges: list[str]) -> str:
         if "->" not in edge:
             continue
         source, target = [part.strip() for part in edge.split("->", 1)]
-        lines.append(f'  {node_id(source)}["{source}"] --> {node_id(target)}["{target}"]')
+        edge_id = f"{source} -> {target}"
+        label = " feedback " if edge_id in highlighted_edges else ""
+        lines.append(f'  {node_id(source)}["{source}"] -- "{label}" --> {node_id(target)}["{target}"]')
+    if highlighted_edges:
+        lines.append("  classDef feedback stroke:#dc2626,stroke-width:3px")
     return "\n".join(lines)
+
+
+def feedback_highlights(data: dict[str, Any]) -> set[str]:
+    highlights: set[str] = set()
+    for path in data.get("feedback_paths", []):
+        nodes = path.get("path")
+        if isinstance(nodes, list):
+            for source, target in zip(nodes, nodes[1:]):
+                highlights.add(f"{source} -> {target}")
+    return highlights
 
 
 def extract_edges(data: dict[str, Any]) -> tuple[list[str], list[str]]:
@@ -52,7 +67,7 @@ def render_markdown(data: dict[str, Any]) -> str:
     if data.get("explanation"):
         lines.extend(["", data["explanation"]])
     if graph:
-        lines.extend(["", "## Causal Graph", "", "```mermaid", graph_to_mermaid(graph), "```"])
+        lines.extend(["", "## Causal Graph", "", "```mermaid", graph_to_mermaid(graph, feedback_highlights(data)), "```"])
     if data.get("feedback_paths"):
         lines.extend(["", "## Feedback Paths"])
         for path in data["feedback_paths"]:
@@ -75,9 +90,30 @@ def render_markdown(data: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def render_json(data: dict[str, Any]) -> str:
+    return json.dumps(
+        {
+            "classification": data.get("classification", data.get("verification", "unknown")),
+            "graph": extract_edges(data)[0],
+            "repair_graph": extract_edges(data)[1],
+            "proof_obligations": data.get("proof_obligations", []),
+            "capability_boundary": data.get(
+                "capability_boundary",
+                {
+                    "does_not_prove_arbitrary_termination": True,
+                    "does_not_solve_classical_halting": True,
+                },
+            ),
+        },
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render CHC JSON as a Markdown report.")
     parser.add_argument("input", help="Analysis, repair, or verification JSON file.")
+    parser.add_argument("--format", choices=("markdown", "json", "mermaid"), default="markdown")
     return parser
 
 
@@ -91,7 +127,13 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(data, dict):
         print("input must be a JSON object", file=sys.stderr)
         return 2
-    print(render_markdown(data), end="")
+    if args.format == "json":
+        print(render_json(data), end="")
+    elif args.format == "mermaid":
+        graph, _ = extract_edges(data)
+        print(graph_to_mermaid(graph, feedback_highlights(data)))
+    else:
+        print(render_markdown(data), end="")
     return 0
 
 

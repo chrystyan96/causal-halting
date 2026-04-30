@@ -16,6 +16,10 @@ from typing import Any
 
 
 DESIGN_IR_VERSION = "1.0"
+CAPABILITY_BOUNDARY = {
+    "does_not_prove_arbitrary_termination": True,
+    "does_not_solve_classical_halting": True,
+}
 ALLOWED_TIMINGS = {
     "during_observed_execution",
     "after_observed_execution",
@@ -71,8 +75,14 @@ def base_roles() -> dict[str, list[str]]:
     }
 
 
+def add_boundary(result: dict[str, Any]) -> dict[str, Any]:
+    result.setdefault("capability_boundary", dict(CAPABILITY_BOUNDARY))
+    result.setdefault("analysis_profile", "complete_for_chc0")
+    return result
+
+
 def needs_design_ir_result(text: str) -> dict[str, Any]:
-    return {
+    return add_boundary({
         "classification": "needs_design_ir",
         "design_ir": None,
         "inferred_graph": [],
@@ -84,13 +94,15 @@ def needs_design_ir_result(text: str) -> dict[str, Any]:
             "Interpret the design into DesignIR first, then rerun the analyzer."
         ),
         "input_preview": text.strip()[:200],
-    }
+    })
 
 
 def validate_design_ir(data: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if data.get("design_ir_version") != DESIGN_IR_VERSION:
         errors.append(f"design_ir_version must be {DESIGN_IR_VERSION!r}")
+    if "classification" in data:
+        errors.append("classification is script-owned and must not be supplied in DesignIR")
     executions = data.get("executions")
     observations = data.get("observations")
     controls = data.get("controls")
@@ -170,7 +182,7 @@ def validate_design_ir(data: dict[str, Any]) -> list[str]:
 def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
     errors = validate_design_ir(data)
     if errors:
-        return {
+        return add_boundary({
             "classification": "parse_error",
             "design_ir": data,
             "inferred_graph": [],
@@ -178,7 +190,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
             "uncertain_edges": [],
             "repair": [],
             "explanation": "; ".join(errors),
-        }
+        })
 
     executions = {execution["id"]: execution for execution in data["executions"]}
     observations = {observation["result"]: observation for observation in data["observations"]}
@@ -239,7 +251,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
             proof_obligations.append(default_proof_obligation(control["result"], observation["target_exec"]))
 
     if feedback:
-        return {
+        return add_boundary({
             "classification": "causal_paradox",
             "design_ir": data,
             "inferred_graph": graph,
@@ -248,10 +260,10 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
             "repair": repair_for_self_feedback(),
             "proof_obligations": proof_obligations,
             "explanation": "A prediction or observation result controls the same execution it observes.",
-        }
+        })
 
     if uncertain_edges:
-        return {
+        return add_boundary({
             "classification": "insufficient_info",
             "design_ir": data,
             "inferred_graph": graph,
@@ -260,9 +272,9 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
             "repair": ["Specify the consumer execution or external boundary for each observation result."],
             "proof_obligations": [],
             "explanation": "The DesignIR leaves at least one result consumer unspecified.",
-        }
+        })
 
-    return {
+    return add_boundary({
         "classification": "valid_acyclic",
         "design_ir": data,
         "inferred_graph": graph,
@@ -271,7 +283,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
         "repair": [],
         "proof_obligations": [],
         "explanation": "No DesignIR control edge routes an observation result back into its observed execution.",
-    }
+    })
 
 
 def analyze_design(text: str) -> dict[str, Any]:
@@ -281,7 +293,7 @@ def analyze_design(text: str) -> dict[str, Any]:
         return needs_design_ir_result(text)
     if isinstance(data, dict) and {"executions", "observations", "controls"}.issubset(data.keys()):
         return analyze_design_ir(data)
-    return {
+    return add_boundary({
         "classification": "parse_error",
         "design_ir": data if isinstance(data, dict) else None,
         "inferred_graph": [],
@@ -290,7 +302,7 @@ def analyze_design(text: str) -> dict[str, Any]:
         "repair": [],
         "proof_obligations": [],
         "explanation": "Input JSON is not a DesignIR object with executions, observations, and controls.",
-    }
+    })
 
 
 def validate_shape(result: dict[str, Any]) -> list[str]:
@@ -381,6 +393,7 @@ def main(argv: list[str] | None = None) -> int:
             "repair": [],
             "explanation": "; ".join(errors),
         }
+        result = add_boundary(result)
     if args.format == "json":
         print(json.dumps(result, indent=2, sort_keys=True))
     else:

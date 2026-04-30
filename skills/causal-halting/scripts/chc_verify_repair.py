@@ -11,6 +11,12 @@ from pathlib import Path
 from typing import Any
 
 
+CAPABILITY_BOUNDARY = {
+    "does_not_prove_arbitrary_termination": True,
+    "does_not_solve_classical_halting": True,
+}
+
+
 def load_trace_checker():
     script = Path(__file__).resolve().with_name("chc_trace_check.py")
     spec = importlib.util.spec_from_file_location("chc_trace_check", script)
@@ -96,11 +102,29 @@ def verify_repair(before_text: str, after_text: str, obligations: list[dict[str,
         "before_feedback_paths": before.get("feedback_paths", []),
         "after_feedback_paths": after.get("feedback_paths", []),
         "proof_obligations": checked_obligations,
+        "capability_boundary": dict(CAPABILITY_BOUNDARY),
+        "analysis_profile": "trace_identity_limited",
         "explanation": (
             "Repair removes same-execution pre-end consumption and satisfies the requested proof obligations."
             if passed
             else "Repair verification requires before=causal_paradox, after=valid_acyclic, and all proof obligations passing."
         ),
+    }
+
+
+def repair_certificate(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "certificate_version": "1.0",
+        "claim": "prediction_feedback_removed",
+        "before_classification": result["before_classification"],
+        "after_classification": result["after_classification"],
+        "obligations_checked": result["proof_obligations"],
+        "evidence_paths": {
+            "before_feedback_paths": result["before_feedback_paths"],
+            "after_feedback_paths": result["after_feedback_paths"],
+        },
+        "result": result["verification"],
+        "capability_boundary": result["capability_boundary"],
     }
 
 
@@ -126,6 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("before", help="Before trace JSONL file.")
     parser.add_argument("after", help="After trace JSONL file.")
     parser.add_argument("--repair", help="Repair JSON file containing proof_obligations.")
+    parser.add_argument("--certificate", action="store_true", help="Emit a repair certificate JSON instead of verification JSON.")
     parser.add_argument("--format", choices=("human", "json"), default="human")
     return parser
 
@@ -146,11 +171,19 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.after).read_text(encoding="utf-8"),
         obligations,
     )
+    if args.certificate:
+        result = repair_certificate(result)
     if args.format == "json":
         print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.certificate:
+        print(f"claim: {result['claim']}")
+        print(f"result: {result['result']}")
+        print(f"before_classification: {result['before_classification']}")
+        print(f"after_classification: {result['after_classification']}")
     else:
         print(format_human(result))
-    return 0 if result["verification"] == "passed" else 1
+    status = result.get("verification", result.get("result"))
+    return 0 if status == "passed" else 1
 
 
 if __name__ == "__main__":

@@ -12,6 +12,16 @@ from typing import Any
 
 
 AUDIT_PURPOSES = {"audit", "audit_only", "log", "logging", "post_run_audit", "record"}
+CAPABILITY_BOUNDARY = {
+    "does_not_prove_arbitrary_termination": True,
+    "does_not_solve_classical_halting": True,
+}
+
+
+def add_boundary(result: dict[str, Any]) -> dict[str, Any]:
+    result.setdefault("capability_boundary", dict(CAPABILITY_BOUNDARY))
+    result.setdefault("analysis_profile", "trace_identity_limited")
+    return result
 
 
 @dataclass(frozen=True)
@@ -92,7 +102,7 @@ def is_before_exec_end(consumer_index: int, observed: ExecInfo) -> bool:
 
 
 def event_metadata(event: dict[str, Any]) -> dict[str, Any]:
-    keys = ("event_source", "timestamp", "span_id", "parent_id", "confidence")
+    keys = ("event_source", "timestamp", "span_id", "parent_id", "confidence", "execution_identity_relation")
     return {key: event[key] for key in keys if key in event}
 
 
@@ -256,8 +266,13 @@ def analyze_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             and consumer_exec.start_index > observed.end_index
         ):
             relation = "future_execution"
+        identity_relation = "same" if same_execution else "future"
+        explicit_identity = consumption.metadata or {}
+        if isinstance(explicit_identity.get("execution_identity_relation"), str):
+            identity_relation = str(explicit_identity["execution_identity_relation"])
         if same_execution and not before_end:
             relation = "same_execution_after_end"
+            identity_relation = "same"
         if audit_only:
             relation = "audit_only"
 
@@ -269,7 +284,19 @@ def analyze_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             "path": [observed.node(), result_node, consumer_exec.node()],
             "purpose": consumption.purpose,
             "before_observed_exec_end": before_end,
+            "execution_identity_relation": identity_relation,
         }
+        if identity_relation == "unknown":
+            uncertain_paths.append(
+                {
+                    "result_id": consumption.result_id,
+                    "relation": "unknown_identity",
+                    "target_exec_id": observation.target_exec_id,
+                    "consumer_exec_id": consumption.consumer_exec_id,
+                    "reason": "Trace does not state whether this consumer is future, retried, resumed, forked, or unrelated.",
+                }
+            )
+            continue
         if same_execution and before_end and not audit_only:
             feedback_paths.append(path)
         else:
@@ -354,7 +381,7 @@ def analyze_events(events: list[dict[str, Any]]) -> dict[str, Any]:
                     valid_paths.append(path)
 
     if errors:
-        return {
+        return add_boundary({
             "classification": "parse_error",
             "graph": graph,
             "feedback_paths": feedback_paths,
@@ -362,10 +389,10 @@ def analyze_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             "uncertain_paths": uncertain_paths,
             "semantic_status": "not_analyzed",
             "explanation": "; ".join(errors),
-        }
+        })
 
     if feedback_paths:
-        return {
+        return add_boundary({
             "classification": "causal_paradox",
             "graph": graph,
             "feedback_paths": feedback_paths,
@@ -373,10 +400,10 @@ def analyze_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             "uncertain_paths": uncertain_paths,
             "semantic_status": "not_analyzed",
             "explanation": "An observation result is consumed by, or routed through a controller back into, the same execution before that execution ends.",
-        }
+        })
 
     if uncertain_paths:
-        return {
+        return add_boundary({
             "classification": "insufficient_info",
             "graph": graph,
             "feedback_paths": [],
@@ -384,9 +411,9 @@ def analyze_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             "uncertain_paths": uncertain_paths,
             "semantic_status": "not_analyzed",
             "explanation": "The trace contains ambiguous execution, result, or controller identity, so causal validity cannot be determined.",
-        }
+        })
 
-    return {
+    return add_boundary({
         "classification": "valid_acyclic",
         "graph": graph,
         "feedback_paths": [],
@@ -394,13 +421,13 @@ def analyze_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         "uncertain_paths": [],
         "semantic_status": "not_analyzed",
         "explanation": "No trace event routes an observation result back into the same observed execution before it ends.",
-    }
+    })
 
 
 def analyze_text(text: str) -> dict[str, Any]:
     events, errors = parse_jsonl(text)
     if errors:
-        return {
+        return add_boundary({
             "classification": "parse_error",
             "graph": [],
             "feedback_paths": [],
@@ -408,7 +435,7 @@ def analyze_text(text: str) -> dict[str, Any]:
             "uncertain_paths": [],
             "semantic_status": "not_analyzed",
             "explanation": "; ".join(errors),
-        }
+        })
     return analyze_events(events)
 
 

@@ -1,6 +1,6 @@
 # Causal Halting
 
-A Codex skill, low-cost prompt guard, operational CHC-0/CHC-1/CHC-2 checker, DesignIR verifier, trace analyzer, and repair workflow for detecting prediction-feedback loops in halting-style reasoning and agent architectures.
+A Codex skill, low-cost prompt guard, operational CHC-0/CHC-1/CHC-2 checker, CHC-3 process/session analyzer, CHC-4 temporal trace analyzer, CHC-5 probabilistic prediction analyzer, DesignIR verifier, trace analyzer, repair certificates, and report workflow for detecting prediction-feedback loops in halting-style reasoning and agent architectures.
 
 `causal-halting` packages four things:
 
@@ -10,6 +10,7 @@ A Codex skill, low-cost prompt guard, operational CHC-0/CHC-1/CHC-2 checker, Des
 4. a DesignIR verifier and trace analyzer for agent/workflow systems;
 5. a causal repair workflow that proposes safer execution boundaries;
 6. a low-cost background prompt guard that lets the main LLM detect CHC-0 cases from causal structure, not keyword matching.
+7. CHC-3/4/5 structured analyzers for process/session flows, temporal traces, and probabilistic PredictionResult feedback.
 
 The project is a research tool. It does not solve the classical Halting Problem. It gives a concrete way to separate two different failure modes that are often conflated:
 
@@ -56,6 +57,18 @@ This project does not:
 - implement hypercomputation;
 - make quantum, analog, or transfinite computation claims;
 - classify all self-reference as invalid.
+
+## What `valid_acyclic` Does Not Mean
+
+`valid_acyclic` only means no modeled prediction-feedback cycle was detected in the structured artifact. It does not mean:
+
+- the program terminates;
+- the system is safe;
+- the agent is correct;
+- the trace is complete;
+- the classical Halting Problem has been solved.
+
+Likewise, `causal_paradox` means a modeled prediction/control loop exists. It is not a claim that the entire program is unsafe. `unproved` is not a failure; it is the ordinary semantic boundary.
 
 It makes a narrower claim:
 
@@ -538,7 +551,7 @@ The run asks whether this same run halts and then uses the answer to control its
 
 ## From Hygiene To Verification
 
-Version 2.0 extends the project beyond a prompt-level warning label. It adds an operational CHC-0/1/2 checker and explicit causal verification pipeline:
+Version 3.0 extends the project beyond a prompt-level warning label. It keeps the operational CHC-0/1/2 checker and adds CHC-3/4/5 structured analysis plus an explicit causal verification pipeline:
 
 ```text
 /causal-halting analyze-design <design-ir-json-file>
@@ -794,7 +807,15 @@ Use `eval-design-ir` to validate extraction fixtures without parsing prose:
 
 ```powershell
 python scripts/chc_eval_design_ir.py examples/design-ir-corpus
+python scripts/chc_eval_suite.py examples/design-ir-corpus
+python scripts/chc_certificate.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl --repair examples/self-prediction.analysis.json
+python scripts/chc_process_check.py examples/process-self-feedback.process-ir.json
+python scripts/chc_temporal_check.py examples/temporal-self-feedback.trace.jsonl
+python scripts/chc_prediction_check.py examples/prediction-self-risk.prediction-ir.json
+python scripts/sync_skill_package.py --check
 ```
+
+Version 3.0 adds trust infrastructure: capability-boundary metadata, analysis profiles, DesignIR schema validation, repair certificates, CHC-3/4/5 structured analyzers, a Lean proof-track skeleton, a 50-case DesignIR evaluation corpus, and real case-study fixtures.
 
 Each corpus case separates:
 

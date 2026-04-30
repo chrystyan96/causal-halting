@@ -6,7 +6,7 @@ This package is the portable skill distribution for `causal-halting`. It is suit
 
 ## What It Does
 
-The skill applies Causal Halting Calculus (CHC-0/1/2) as an analysis method.
+The skill applies Causal Halting Calculus (CHC-0/1/2/3/4/5) as an analysis method.
 
 It separates two failure modes:
 
@@ -33,6 +33,7 @@ causal-halting/
   references/
     causal-halting-calculus.md
     chc-1-2-operational.md
+    chc-3-4-5-operational.md
     design-ir-extraction.md
   scripts/
     chc_check.py
@@ -47,6 +48,20 @@ causal-halting/
     chc_langgraph_adapter.py
     chc_temporal_airflow_adapter.py
     chc_verify_repair.py
+    chc_certificate.py
+    chc_process_check.py
+    chc_temporal_check.py
+    chc_prediction_check.py
+    chc_eval_suite.py
+    sync_skill_package.py
+  schemas/
+    design-ir.schema.json
+    effect-summary.schema.json
+    effect-annotation.schema.json
+    process-ir.schema.json
+    temporal-trace.schema.json
+    prediction-result.schema.json
+    repair-certificate.schema.json
   examples/
     diagonal.chc
     diagonal.graph
@@ -130,6 +145,11 @@ python scripts/chc_temporal_airflow_adapter.py examples/temporal-airflow-indirec
 python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
 python scripts/chc_report.py examples/self-prediction.analysis.json
 python scripts/chc_eval_design_ir.py examples/design-ir-corpus
+python scripts/chc_eval_suite.py examples/design-ir-corpus
+python scripts/chc_certificate.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl --repair examples/self-prediction.analysis.json
+python scripts/chc_process_check.py examples/process-self-feedback.process-ir.json
+python scripts/chc_temporal_check.py examples/temporal-self-feedback.trace.jsonl
+python scripts/chc_prediction_check.py examples/prediction-self-risk.prediction-ir.json
 ```
 
 Checker classifications:
@@ -198,7 +218,7 @@ The supervisor observes a separate worker. The result does not feed back into th
 
 ## Design, Trace, And Repair Workflows
 
-The portable skill also includes the v2.0 analysis scripts:
+The portable skill also includes the v3.0 analysis scripts:
 
 ```text
 chc_design_analyze.py  analyze explicit DesignIR JSON
@@ -212,6 +232,12 @@ chc_otel_adapter.py    convert explicitly annotated OpenTelemetry JSON to CHC tr
 chc_langgraph_adapter.py convert structured LangGraph-style JSON to CHC trace JSONL
 chc_temporal_airflow_adapter.py convert structured Temporal/Airflow-style JSON to CHC trace JSONL
 chc_verify_repair.py   verify before/after trace repair
+chc_certificate.py     emit machine-readable repair certificates
+chc_process_check.py   analyze CHC-3 ProcessIR
+chc_temporal_check.py  analyze CHC-4 temporal trace JSONL
+chc_prediction_check.py analyze CHC-5 PredictionIR
+chc_eval_suite.py      summarize corpus coverage and deterministic checks
+sync_skill_package.py  compare/copy portable skill package
 ```
 
 Trace schema:
@@ -224,6 +250,8 @@ Trace schema:
 ```
 
 Repair reports move same-run prediction feedback to a separate orchestrator/future-run boundary and emit proof obligations. `chc_verify_repair.py` checks that the after trace removes same-run pre-end consumption and, when supplied with repair JSON, satisfies the listed obligations.
+
+`valid_acyclic` does not mean the program terminates, the system is safe, or the agent is correct. It only means no modeled prediction-feedback cycle was detected.
 
 ## No Lexical Analysis
 

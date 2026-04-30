@@ -27,10 +27,12 @@ Current submitted branch:
 chrystyan96:add-causal-halting-experimental -> openai:main
 ```
 
-The current local package is v2.0 and includes operational CHC-0/CHC-1/CHC-2
-checking, DesignIR v1.0 analysis, deterministic trace checking,
+The current local package is v3.0 and includes operational CHC-0/CHC-1/CHC-2
+checking, CHC-3 ProcessIR analysis, CHC-4 temporal trace analysis, CHC-5
+PredictionIR analysis, DesignIR v1.0 analysis, deterministic trace checking,
 OpenTelemetry/LangGraph/Temporal/Airflow adapters, indirect feedback detection,
-proof-obligation repair verification, and Markdown/Mermaid reports.
+proof-obligation repair verification, repair certificates, schemas, a Lean
+proof-track skeleton, and Markdown/Mermaid reports.
 
 ## Codex Plugin Proposal
 

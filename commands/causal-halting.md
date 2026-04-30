@@ -1,6 +1,6 @@
 ---
-description: Manage Causal Halting mode, checker, DesignIR/trace analysis, adapters, corpus evaluation, repair verification, and reports
-argument-hint: [on|off|status|explain|check|analyze-design|analyze-trace|repair|adapt-workflow|adapt-otel|adapt-langgraph|adapt-temporal-airflow|eval-design-ir|verify-repair|report] [args]
+description: Manage Causal Halting mode, checker, DesignIR/trace/process/temporal/prediction analysis, adapters, corpus evaluation, repair verification, certificates, and reports
+argument-hint: [on|off|status|explain|check|analyze-design|analyze-trace|analyze-process|analyze-temporal|analyze-prediction|repair|adapt-workflow|adapt-otel|adapt-langgraph|adapt-temporal-airflow|eval-design-ir|eval-suite|verify-repair|certificate|report] [args]
 allowed-tools: Bash(python:*)
 ---
 
@@ -16,13 +16,18 @@ explain
 check <file>
 analyze-design <design-ir-json-file>
 analyze-trace <jsonl-file>
+analyze-process <process-ir-json-file>
+analyze-temporal <temporal-jsonl-file>
+analyze-prediction <prediction-ir-json-file>
 repair <analysis-json>
 adapt-workflow <workflow-json>
 adapt-otel <otel-json>
 adapt-langgraph <langgraph-json>
 adapt-temporal-airflow <temporal-airflow-json>
 eval-design-ir <corpus-dir>
+eval-suite <corpus-dir>
 verify-repair <trace-before> <trace-after> [repair-json]
+certificate <trace-before> <trace-after> [repair-json]
 report <analysis-or-repair-json>
 ```
 
@@ -51,9 +56,12 @@ After the command output is available:
 - For `check`, report the checker classification and semantic status. Do not add claims beyond the checker output.
 - For `analyze-design`, report the DesignIR classification, graph, uncertain edges, and repair recommendations. If the output is `needs_design_ir`, provide the DesignIR that should be analyzed next instead of making a classification.
 - For `analyze-trace`, report the deterministic trace classification and exact feedback path when present.
+- For `analyze-process`, `analyze-temporal`, or `analyze-prediction`, report the CHC-3/4/5 classification and the exact structured boundary used.
 - For `repair`, report the before/after causal boundary and proof obligations.
 - For `adapt-workflow`, report the generated JSONL events and say they still need trace analysis.
 - For `adapt-otel`, `adapt-langgraph`, or `adapt-temporal-airflow`, report the generated JSONL events and say they still need trace analysis.
 - For `eval-design-ir`, report pass/fail counts and any failed corpus cases.
+- For `eval-suite`, report corpus size, language coverage, and deterministic analyzer correctness.
 - For `verify-repair`, report whether verification passed, with before/after classifications and proof-obligation statuses.
+- For `certificate`, report certificate result and evidence paths.
 - For `report`, return the Markdown/Mermaid report.

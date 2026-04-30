@@ -115,7 +115,7 @@ class CausalHaltingCheckerTests(unittest.TestCase):
 
         self.assertEqual(result["classification"], "causal_paradox")
         self.assertEqual(result["chc_level"], "CHC-1")
-        self.assertEqual(result["fixed_point_status"], "converged")
+        self.assertEqual(result["fixed_point_status"], "converged_exact")
         self.assertIn("Rec", result["effect_summaries"])
 
     def test_chc1_mutual_recursive_feedback_is_causal_paradox(self):

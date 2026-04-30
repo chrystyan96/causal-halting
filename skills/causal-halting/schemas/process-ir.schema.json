@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CHC-3 ProcessIR",
+  "type": "object",
+  "required": ["processes", "sessions", "channels", "executions", "observations", "controls"],
+  "properties": {
+    "processes": {"type": "array"},
+    "sessions": {"type": "array"},
+    "channels": {"type": "array"},
+    "executions": {"type": "array"},
+    "observations": {"type": "array"},
+    "controls": {"type": "array"}
+  }
+}

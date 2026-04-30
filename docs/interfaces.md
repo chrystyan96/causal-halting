@@ -29,6 +29,8 @@ effect_summaries
 fixed_point_status
 higher_order_effects
 effect_composition_status
+analysis_profile
+capability_boundary
 ```
 
 `insufficient_info` is used when a recursive summary does not converge or a higher-order effect is not explicit.
@@ -71,6 +73,7 @@ timestamp
 span_id
 parent_id
 confidence
+execution_identity_relation
 ```
 
 ### Repair JSON
@@ -110,12 +113,25 @@ Every report must state that CHC does not solve classical halting.
 
 ## Future Interfaces
 
-These should be added only when the implementation needs them:
+V3.0 adds these structured interfaces:
 
 ```text
 ProcessIR
 TemporalTraceIR
 ProofCertificate
+PredictionIR
+```
+
+JSON schemas are maintained under `schemas/`:
+
+```text
+design-ir.schema.json
+effect-summary.schema.json
+effect-annotation.schema.json
+process-ir.schema.json
+temporal-trace.schema.json
+prediction-result.schema.json
+repair-certificate.schema.json
 ```
 
 The rule remains fixed: scripts verify structured causal artifacts; they do not classify natural language.
