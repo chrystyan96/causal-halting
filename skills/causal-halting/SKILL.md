@@ -7,6 +7,10 @@ description: Analyze halting-problem variants, Turing diagonalization, self-refe
 
 Use this skill to apply the Causal Halting Calculus (CHC-0) as an analysis method. CHC-0 does not solve the classical Halting Problem. It separates two failure modes: structural prediction-feedback cycles (`causal_paradox`) and ordinary semantic undecidability (`unproved`).
 
+When this skill is packaged as the `causal-halting` plugin, a background prompt guard may put CHC-0 hygiene into context automatically. Treat that guard as a routing signal, not as a proof result: apply the workflow below only when structurally relevant, keep the distinction sharp, and do not overclaim.
+
+To use the CHC-0 lens for every relevant question in the current session, the user can run `/causal-halting on` or say `use causal-halting for this session`. To turn it off, the user can run `/causal-halting off` or say `causal-halting session off`.
+
 ## Workflow
 
 1. State the exact claim being analyzed.

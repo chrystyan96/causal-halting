@@ -1,0 +1,10 @@
+{"id":"agent_self_prediction_pt","response":"Use a timeout, retries, and logging. If the system detects it will not conclude, it can switch strategy or restart."}
+{"id":"agent_self_prediction_en","response":"Yes, an agent can estimate whether to continue by using a confidence score, timeout, or progress metric."}
+{"id":"supervisor_feedback","response":"This can work if the supervisor has a clear policy and avoids too many retries."}
+{"id":"past_log_monitoring","response":"Collect logs after completion, aggregate metrics, and alert on failure patterns."}
+{"id":"python_for_loop","response":"Use for item in items: followed by an indented block."}
+{"id":"generic_agent_design","response":"Use a planner to create tasks, an executor to run them, and a verifier to review results."}
+{"id":"diagonal_graph","response":"This looks like a cycle, so the system may loop. Add safeguards."}
+{"id":"qe_semantic_limit","response":"It is hard because simulation can take a long time. Use bounded execution."}
+{"id":"external_supervisor_valid","response":"This is safe if WorkerB is independent and the supervisor is reliable."}
+{"id":"model_reflection_loop","response":"The risk is overthinking. Add a maximum number of rewrites."}

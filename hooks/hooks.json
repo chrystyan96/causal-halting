@@ -1,0 +1,17 @@
+{
+  "description": "Low-cost CHC guard. It injects a compact causal-halting guard on every user prompt and upgrades to session mode when explicitly enabled.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/chc_session_guard.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

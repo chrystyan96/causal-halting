@@ -1,7 +1,7 @@
 {
   "name": "causal-halting",
-  "version": "0.1.0",
-  "description": "A Codex skill and experimental checker for detecting prediction-feedback loops in halting-style reasoning.",
+  "version": "1.0.0",
+  "description": "A Codex skill, low-cost prompt guard, and experimental checker for detecting prediction-feedback loops in halting-style reasoning.",
   "author": {
     "name": "Chrystyan Byrnes",
     "url": "https://github.com/chrystyan96/causal-halting"
@@ -18,14 +18,18 @@
     "ai-agents"
   ],
   "skills": "./skills/",
+  "commands": "./commands/",
+  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "Causal Halting",
     "shortDescription": "Analyze prediction-feedback loops in halting-style reasoning.",
-    "longDescription": "Causal Halting packages a Codex skill, CHC-0 reference notes, and an experimental checker for separating structural prediction-feedback cycles from ordinary semantic undecidability.",
+    "longDescription": "Causal Halting packages a Codex skill, low-cost UserPromptSubmit context guard, CHC-0 reference notes, and an experimental checker for separating structural prediction-feedback cycles from ordinary semantic undecidability.",
     "developerName": "Chrystyan Byrnes",
     "category": "Developer Tools",
     "capabilities": [
       "Analyze",
+      "Evaluate",
+      "Route",
       "Research",
       "Verify"
     ],

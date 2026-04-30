@@ -1,12 +1,13 @@
 # Causal Halting
 
-A Codex skill and experimental checker for detecting prediction-feedback loops in halting-style reasoning.
+A Codex skill, low-cost prompt guard, and experimental checker for detecting prediction-feedback loops in halting-style reasoning.
 
-`causal-halting` packages three things:
+`causal-halting` packages four things:
 
 1. a Codex skill for applying Causal Halting Calculus (CHC-0);
 2. a formal reference note for the CHC-0 rules and theorems;
-3. a small Python checker for CHC-0 causal graphs.
+3. a small Python checker for CHC-0 causal graphs;
+4. a low-cost background prompt guard that lets the main LLM detect CHC-0 cases from causal structure, not keyword matching.
 
 The project is a research tool. It does not solve the classical Halting Problem. It gives a concrete way to separate two different failure modes that are often conflated:
 
@@ -108,6 +109,18 @@ causal-halting/
   LICENSE.txt
   .codex-plugin/
     plugin.json
+  commands/
+    causal-halting.md
+  docs/
+    evaluation.md
+  evals/
+    prompts.jsonl
+    baseline-responses.jsonl
+    guarded-responses.jsonl
+    expected-behavior.md
+    compare-template.md
+  hooks/
+    hooks.json
   skills/
     causal-halting/
       SKILL.md
@@ -117,6 +130,8 @@ causal-halting/
         causal-halting-calculus.md
   scripts/
     chc_check.py
+    chc_session_guard.py
+    evaluate_responses.py
   examples/
     diagonal.chc
     diagonal.graph
@@ -124,6 +139,7 @@ causal-halting/
     safe-supervisor.graph
   tests/
     test_chc_check.py
+    test_chc_session_guard.py
 ```
 
 ## Installation
@@ -371,6 +387,342 @@ Classification:
 Limits:
 ```
 
+## Background Activation
+
+When installed as a plugin, `causal-halting` includes a `UserPromptSubmit` hook. The user does not need to explicitly ask for CHC-0 on each prompt.
+
+The hook does not classify natural language. It injects a compact structural guard on every prompt. The main LLM then performs the cheap semantic check during normal answer generation:
+
+```text
+Obs/Pred(E) -> Result -> Control(E)
+```
+
+Default injected guard:
+
+```text
+Silently check whether the prompt involves prediction, observation, simulation,
+or evaluation about an execution that may control that same execution. If yes,
+apply CHC-0 hygiene and distinguish causal_paradox from unproved. If no, ignore
+this instruction and answer normally. Do not mention CHC-0 unless it materially
+improves the answer.
+```
+
+This keeps cost low: there is no second LLM classifier and no regex/keyword semantic fallback.
+
+## Session Mode
+
+The user can enable a stronger CHC-0 lens with a slash command:
+
+```text
+/causal-halting on
+```
+
+To disable:
+
+```text
+/causal-halting off
+```
+
+To inspect state:
+
+```text
+/causal-halting status
+```
+
+To explain the guard:
+
+```text
+/causal-halting explain
+```
+
+To check an explicit `.graph` or `.chc` file:
+
+```text
+/causal-halting check examples/diagonal.graph
+```
+
+The same state can also be changed through explicit text commands, which are handled by the hook when a slash command is unavailable:
+
+```text
+use causal-halting for this session
+causal-halting session on
+enable causal-halting for this session
+causal-halting session off
+disable causal-halting for this session
+stop causal-halting for this session
+```
+
+The hook stores session state under:
+
+```text
+.codex/causal-halting/sessions/<session_id>.json
+```
+
+The slash command stores workspace session mode under:
+
+```text
+.codex/causal-halting/session-mode.json
+```
+
+When session mode is active, the hook injects the stronger guard:
+
+```text
+Causal Halting session mode is active. For every answer, silently check for
+prediction-feedback structure. When relevant, identify Code, Exec, H, and
+HaltResult; classify structural feedback as causal_paradox and unresolved
+semantic cases as unproved. If unrelated, answer normally without forcing CHC
+terminology.
+```
+
+Prompts that should lead the main LLM to apply CHC-0:
+
+```text
+Can an agent predict whether its current run will halt?
+My system changes strategy when it learns that its current execution will not finish.
+Can an agent decide whether to continue based on a prediction about this same run?
+Does this supervisor-worker loop feed the monitor result back into the observed worker?
+E(AgentRun,input) -> R(AgentRun,input) -> E(AgentRun,input)
+```
+
+Prompts that should be answered normally:
+
+```text
+Explain how to write a Python function.
+What is the capital of France?
+How do I write a Python for loop?
+How should a supervisor monitor worker logs after completion?
+```
+
+The guard is a routing aid, not a hidden theorem prover. It does not run semantic halting analysis and does not replace the formal checker.
+
+## Automatic Use Example: Hexagonal Architecture
+
+The plugin is not called like a visible function during normal conversation. The `UserPromptSubmit` hook silently adds a small instruction before the model answers. The model then performs a cheap structural check while writing the answer.
+
+The check is:
+
+```text
+Is there an observation, prediction, simulation, or evaluation about an execution
+whose result can control that same execution?
+
+Obs/Pred(E) -> Result -> Control(E)
+```
+
+If the pattern is absent, the model ignores CHC-0 and answers normally.
+
+### Prompt With No CHC-0 Trigger
+
+User prompt:
+
+```text
+Explain how hexagonal architecture works.
+```
+
+What the hook injects silently:
+
+```text
+Silently check whether the prompt involves prediction, observation, simulation,
+or evaluation about an execution that may control that same execution. If yes,
+apply CHC-0 hygiene. If no, ignore this instruction and answer normally.
+```
+
+What the model sees structurally:
+
+```text
+Topic: software architecture
+Code/Exec/HaltResult pattern: absent
+Prediction about current execution: absent
+Result controlling same execution: absent
+CHC-0 action: ignore
+```
+
+Expected answer with the plugin:
+
+```text
+Hexagonal architecture separates the domain from external details. The center
+contains business rules. Ports define contracts. Adapters connect databases,
+APIs, queues, UI, and external services. This makes the domain easier to test
+and keeps infrastructure replaceable.
+```
+
+Expected answer without the plugin:
+
+```text
+Hexagonal architecture separates the domain from external details. The center
+contains business rules. Ports define contracts. Adapters connect databases,
+APIs, queues, UI, and external services. This makes the domain easier to test
+and keeps infrastructure replaceable.
+```
+
+Difference:
+
+```text
+No visible difference should appear.
+The plugin added only a silent safety check and correctly stayed out of the answer.
+```
+
+This is intended. The plugin should not force CHC terminology onto unrelated software design questions.
+
+### Prompt Where CHC-0 Activates Without Being Named
+
+User prompt:
+
+```text
+Design a hexagonal architecture for an agent that asks a supervisor whether
+the current execution will finish. If the supervisor says no, the same agent
+execution changes strategy.
+```
+
+The user did not mention CHC-0, halting, Turing, or causal paradox. Still, the structure is present:
+
+```text
+E = current agent execution
+Obs/Pred(E) = supervisor predicts whether this execution will terminate
+Result = supervisor's prediction
+Control(E) = same execution changes strategy because of that prediction
+```
+
+So the model applies CHC-0 hygiene:
+
+```text
+E(AgentRun,input) -> R(AgentRun,input) -> E(AgentRun,input)
+```
+
+Expected answer without the plugin:
+
+```text
+Use ports for the agent core, a supervisor adapter, and a strategy adapter.
+The agent asks the supervisor whether it should continue. If the supervisor
+predicts failure, the agent switches strategy and keeps running.
+```
+
+Problem with that answer:
+
+```text
+It sounds reasonable architecturally, but it misses the prediction-feedback loop:
+the current run consumes a prediction about that same current run and changes
+itself based on the result.
+```
+
+Expected answer with the plugin:
+
+```text
+Use hexagonal architecture, but do not let the current execution consume a
+prediction about itself as a control input. That creates:
+
+E(AgentRun,input) -> R(AgentRun,input) -> E(AgentRun,input)
+
+Under CHC-0, this is a causal_paradox shape. Keep the supervisor behind an
+outbound port, but route its prediction to a different execution boundary:
+a later retry, an external orchestrator, or a separate controller that can stop
+or restart the run. If the supervisor only reads logs after completion, it is
+valid_acyclic. If it predicts the current run and that result controls the same
+run, reject the design.
+```
+
+Plain-language version:
+
+```text
+The unsafe design is like asking someone to predict what you will do next,
+then changing what you do because of the prediction, while the prediction was
+supposed to be about the unchanged run. The plugin makes the model notice that
+loop and recommend a cleaner boundary.
+```
+
+Practical hexagonal fix:
+
+```text
+Domain core:
+  AgentPolicy
+  StrategySelection
+
+Inbound ports:
+  StartRun
+  SubmitObservation
+
+Outbound ports:
+  SupervisorPort
+  RunStateStore
+  SchedulerPort
+
+Safe flow:
+  AgentRun writes progress -> Supervisor observes -> Orchestrator decides
+  whether to start a new run, stop externally, or schedule a retry.
+
+Unsafe flow:
+  AgentRun asks "will this same AgentRun finish?" -> prediction returns into
+  AgentRun -> AgentRun changes itself based on that answer.
+```
+
+The gain is not a longer answer. The gain is a better boundary: the model can still explain hexagonal architecture, but it also prevents a subtle self-prediction loop when the prompt contains one.
+
+## Measuring The Gain
+
+The repository includes a small before/after evaluation harness. It compares baseline answers against guarded answers on prompts where CHC-0 should help and prompts where it should stay quiet.
+
+Run:
+
+```powershell
+python scripts/evaluate_responses.py
+python scripts/evaluate_responses.py --format json
+```
+
+Metrics:
+
+```text
+activation_precision  applies CHC when expected and stays quiet otherwise
+activation_noise      forces CHC onto unrelated prompts
+boundary_accuracy     separates causal_paradox, valid_acyclic, and unproved
+overclaim_rate        claims CHC solves halting or arbitrary termination
+answer_usefulness     activation + boundary correctness without overclaim
+token_overhead        guarded response length minus baseline length
+```
+
+Example before/after:
+
+Current bundled fixture result:
+
+```text
+baseline_answer_usefulness: 0.300
+guarded_answer_usefulness: 1.000
+baseline_boundary_accuracy: 0.300
+guarded_boundary_accuracy: 1.000
+guarded_activation_noise: 0.000
+guarded_overclaim_rate: 0.000
+average_token_overhead: 14.600
+```
+
+```text
+Prompt:
+Can an agent decide whether to continue based on a prediction about this same run?
+
+Without causal-halting:
+Yes, an agent can estimate whether to continue by using a confidence score,
+timeout, or progress metric.
+
+With causal-halting:
+The risk is E(run) -> R(run) -> E(run): the prediction about the same run
+controls that run. Under CHC-0 this is a causal_paradox pattern. A safer design
+is a separate monitor whose result affects a later run or a different controller.
+```
+
+Second before/after:
+
+```text
+Prompt:
+Q_e simulates e(e) and halts iff e(e) halts. Is this causally paradoxical?
+
+Without causal-halting:
+It is hard because simulation can take a long time. Use bounded execution.
+
+With causal-halting:
+This is not causally paradoxical if Q_e is H-free. It is valid_acyclic under
+CHC-0, but its halting status is unproved in general because deciding it would
+decide classical halting.
+```
+
+See [docs/evaluation.md](docs/evaluation.md) for the scoring notes and fixture layout.
+
 ## Testing
 
 Run:
@@ -378,6 +730,10 @@ Run:
 ```powershell
 python -m unittest discover -s tests
 python C:\Users\Chrystyan\.codex\skills\.system\skill-creator\scripts\quick_validate.py .\skills\causal-halting
+python -m json.tool .codex-plugin\plugin.json
+python -m json.tool hooks\hooks.json
+python scripts\chc_session_guard.py --mode status --format human
+python scripts\evaluate_responses.py
 ```
 
 Expected:
@@ -400,9 +756,14 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 
 ## Limitations
 
-- The checker detects CHC-0 causal graph failures only.
+- The checker analyzes explicit CHC-0 artifacts only: graph DSL and mini-CHC syntax.
+- The checker detects CHC-0 causal graph failures only; it does not prove arbitrary termination or divergence.
 - The checker does not perform semantic halting analysis.
+- The evaluation harness scores response shape with transparent text checks; it is not a model-graded benchmark.
 - The mini-CHC parser supports only v1 canonical syntax.
+- Session mode through `/causal-halting` depends on the host plugin runtime exposing or propagating prompt/session context as expected.
+- When a slash-command runtime does not expose hook `session_id` directly, `/causal-halting` falls back to workspace-local session mode.
+- The background guard is a context rule, not a formal proof system.
 - L0 is treated as opaque and H-free.
 - Recursive CHC definitions are out of scope for v1.
 - Higher-order code and runtime code generation are out of scope for v1.
@@ -411,7 +772,7 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 
 - CHC-1: recursive CHC definitions with fixed-point causal effect summaries.
 - CHC-2: controlled higher-order code with effect-polymorphic causal types.
-- More examples for AI agent supervision, tool loops, and self-evaluation protocols.
+- Replace illustrative evaluation fixtures with live model comparison runs across several models.
 - Optional visualization for E/R causal graphs.
 
 ## License
