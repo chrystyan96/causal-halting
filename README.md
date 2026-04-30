@@ -113,6 +113,10 @@ causal-halting/
     causal-halting.md
   docs/
     evaluation.md
+  submissions/
+    openai-skills-experimental-pr.md
+    codex-plugin-official-proposal.md
+    codex-plugin-official-request.md
   evals/
     prompts.jsonl
     baseline-responses.jsonl
@@ -785,6 +789,14 @@ Skill is valid!
 ```
 
 ## Publication Path
+
+Current status:
+
+```text
+openai/skills experimental PR: https://github.com/openai/skills/pull/380
+official Codex plugin proposal package: submissions/codex-plugin-official-proposal.md
+official request draft: submissions/codex-plugin-official-request.md
+```
 
 Recommended path:
 
