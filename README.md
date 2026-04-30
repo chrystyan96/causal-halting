@@ -124,10 +124,19 @@ causal-halting/
   skills/
     causal-halting/
       SKILL.md
+      README.md
+      LICENSE.txt
       agents/
         openai.yaml
+      examples/
+        diagonal.chc
+        diagonal.graph
+        qe-valid-acyclic.chc
+        safe-supervisor.graph
       references/
         causal-halting-calculus.md
+      scripts/
+        chc_check.py
   scripts/
     chc_check.py
     chc_session_guard.py
@@ -146,13 +155,37 @@ causal-halting/
 
 ### Install The Codex Skill From GitHub
 
-After publishing this repository, users can install the skill by URL:
+The skill directory is self-contained for direct installation by URL:
 
 ```text
 $skill-installer install https://github.com/chrystyan96/causal-halting/tree/master/skills/causal-halting
 ```
 
 Restart Codex after installing a new skill.
+
+### Install With npx skills
+
+The same self-contained skill can be installed with `npx skills`:
+
+```powershell
+npx skills add https://github.com/chrystyan96/causal-halting/tree/master/skills/causal-halting -a codex -g
+```
+
+For local testing:
+
+```powershell
+npx skills add .\skills\causal-halting -a codex -g
+```
+
+Important distinction:
+
+```text
+skills/causal-halting/ is portable and self-contained.
+It includes SKILL.md, references, examples, checker script, and license.
+
+The repository root is the full Codex plugin.
+It adds hooks, /causal-halting commands, evaluation fixtures, and plugin metadata.
+```
 
 ### Use The Checker Locally
 
@@ -162,6 +195,14 @@ The checker uses Python standard library only.
 cd causal-halting
 python scripts/chc_check.py examples/diagonal.chc
 python scripts/chc_check.py --format json examples/diagonal.graph
+```
+
+The portable skill package also includes the checker:
+
+```powershell
+cd skills\causal-halting
+python scripts\chc_check.py examples\diagonal.chc
+python scripts\chc_check.py --format json examples\diagonal.graph
 ```
 
 ## Checker Input Formats
@@ -748,9 +789,11 @@ Skill is valid!
 Recommended path:
 
 1. Publish this repository as `causal-halting`.
-2. Install the skill by GitHub URL and test it in fresh Codex sessions.
-3. Use the checker against several real agent/workflow designs.
-4. Only then prepare an `openai/skills` experimental PR.
+2. Install the self-contained skill by GitHub URL and test it in fresh Codex sessions.
+3. Install the same skill with `npx skills` and verify the checker resources are present.
+4. Use the checker against several real agent/workflow designs.
+5. Prepare an `openai/skills` experimental PR using `skills/causal-halting/` as the submitted package.
+6. Separately prepare a full Codex plugin submission using the repository root if OpenAI accepts external plugin candidates.
 
 Do not submit to curated/catalog paths until the checker and examples have been exercised on real cases.
 

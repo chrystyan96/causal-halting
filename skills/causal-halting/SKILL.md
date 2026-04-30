@@ -1,11 +1,13 @@
 ---
 name: causal-halting
-description: Analyze halting-problem variants, Turing diagonalization, self-reference, prediction-feedback loops, AI agent termination, workflow self-evaluation, and systems that ask whether their own current execution will halt. Use this skill when the task involves Causal Halting Calculus (CHC-0), causal paradox vs semantic unprovability, halting predictors, or designing/reviewing systems that separate observation, execution, and feedback.
+description: This skill should be used when the user asks to analyze halting-problem variants, Turing diagonalization, self-reference, prediction-feedback loops, AI agent termination, workflow self-evaluation, systems that ask whether their own current execution will halt, Causal Halting Calculus (CHC-0), causal paradox vs semantic unprovability, halting predictors, or designs that separate observation, execution, and feedback.
 ---
 
 # Causal Halting
 
 Use this skill to apply the Causal Halting Calculus (CHC-0) as an analysis method. CHC-0 does not solve the classical Halting Problem. It separates two failure modes: structural prediction-feedback cycles (`causal_paradox`) and ordinary semantic undecidability (`unproved`).
+
+This skill is self-contained for publication through `openai/skills` and `npx skills`. It includes the formal reference, runnable checker, examples, and license inside this directory.
 
 When this skill is packaged as the `causal-halting` plugin, a background prompt guard may put CHC-0 hygiene into context automatically. Treat that guard as a routing signal, not as a proof result: apply the workflow below only when structurally relevant, keep the distinction sharp, and do not overclaim.
 
@@ -104,10 +106,48 @@ CHC-0 rejects diagonal prediction feedback.
 CHC-0 does not decide all halting questions.
 ```
 
-## Reference
+## Bundled Checker
+
+Use `scripts/chc_check.py` for explicit graph DSL or mini-CHC artifacts. The checker uses Python standard library only.
+
+Run from the skill root:
+
+```powershell
+python scripts/chc_check.py examples/diagonal.graph
+python scripts/chc_check.py --format json examples/diagonal.chc
+python scripts/chc_check.py examples/qe-valid-acyclic.chc
+```
+
+Classify checker output as follows:
+
+```text
+causal_paradox  unifiable E ->+ E prediction-feedback path found
+valid_acyclic   no CHC-0 causal paradox detected
+parse_error     unsupported or invalid checker input
+unproved        semantic status only; arbitrary halting remains undecidable
+```
+
+## Bundled Examples
+
+Use the files in `examples/` when demonstrating or testing the skill:
+
+```text
+examples/diagonal.chc          mini-CHC diagonal program
+examples/diagonal.graph        explicit diagonal causal graph
+examples/qe-valid-acyclic.chc  H-free semantic hard case
+examples/safe-supervisor.graph supervisor observes separate worker
+```
+
+## References
 
 For formal rules, theorem statements, and the current paper draft, read:
 
 ```text
 references/causal-halting-calculus.md
+```
+
+For standalone publication notes and installation commands, read:
+
+```text
+README.md
 ```
