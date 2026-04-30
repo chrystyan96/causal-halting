@@ -1,0 +1,39 @@
+{
+  "name": "causal-halting",
+  "version": "0.1.0",
+  "description": "A Codex skill and experimental checker for detecting prediction-feedback loops in halting-style reasoning.",
+  "author": {
+    "name": "Chrystyan Byrnes",
+    "url": "https://github.com/chrystyan96/causal-halting"
+  },
+  "homepage": "https://github.com/chrystyan96/causal-halting",
+  "repository": "https://github.com/chrystyan96/causal-halting",
+  "license": "Apache-2.0",
+  "keywords": [
+    "codex",
+    "skill",
+    "halting-problem",
+    "causal-analysis",
+    "formal-methods",
+    "ai-agents"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Causal Halting",
+    "shortDescription": "Analyze prediction-feedback loops in halting-style reasoning.",
+    "longDescription": "Causal Halting packages a Codex skill, CHC-0 reference notes, and an experimental checker for separating structural prediction-feedback cycles from ordinary semantic undecidability.",
+    "developerName": "Chrystyan Byrnes",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Analyze",
+      "Research",
+      "Verify"
+    ],
+    "defaultPrompt": [
+      "Analyze this agent loop with CHC-0.",
+      "Check this halting-style graph for feedback.",
+      "Separate causal_paradox from unproved."
+    ],
+    "brandColor": "#2563EB"
+  }
+}
