@@ -1,9 +1,12 @@
 {
+  "design_ir_version": "1.0",
   "controls": [
     {
       "action": "change_strategy",
+      "id": "ctrl-1",
       "result": "r-1",
-      "target_exec": "run-1"
+      "target_exec": "run-1",
+      "timing": "during_observed_execution"
     }
   ],
   "executions": [
@@ -19,6 +22,12 @@
       "observer": "Supervisor",
       "result": "r-1",
       "target_exec": "run-1"
+    }
+  ],
+  "semantic_evidence": [
+    {
+      "source": "example",
+      "claim": "The supervisor result changes the same active run."
     }
   ],
   "uncertain": []

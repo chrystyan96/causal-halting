@@ -50,6 +50,12 @@ def repair_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
             "explanation": "No structural causal paradox was reported, so no causal refactoring is required.",
         }
 
+    existing_obligations = analysis.get("proof_obligations")
+    if isinstance(existing_obligations, list) and existing_obligations:
+        obligations = existing_obligations
+    else:
+        obligations = []
+
     feedback = parse_self_feedback([str(edge) for edge in graph])
     if feedback is None:
         target_exec = "observed_execution"
@@ -65,19 +71,38 @@ def repair_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         "E(Orchestrator,input) -> E(NextAgentRun,input)",
     ]
 
-    obligation = {
-        "obligation": "prediction_result_not_consumed_by_observed_execution",
-        "result_id": result_node,
-        "target_exec_id": target_exec,
-        "forbidden_consumer_exec_id": target_exec,
-        "forbidden_consumer": target_exec,
-        "allowed_consumers": DEFAULT_ALLOWED_CONSUMERS,
-        "valid_if": [
-            "consumer is external_orchestrator",
-            "consumer exec starts after observed exec ends",
-            "result is audit_only",
-        ],
-    }
+    if not obligations:
+        obligations = [
+            {
+                "obligation": "prediction_result_not_consumed_by_observed_execution",
+                "result_id": result_node,
+                "target_exec_id": target_exec,
+                "forbidden_consumer_exec_id": target_exec,
+                "forbidden_consumer": target_exec,
+                "allowed_consumers": DEFAULT_ALLOWED_CONSUMERS,
+                "valid_if": [
+                    "consumer is external_orchestrator",
+                    "consumer exec starts after observed exec ends",
+                    "result is audit_only",
+                    "consumer is a future execution",
+                ],
+            },
+            {
+                "obligation": "result_consumed_by_external_orchestrator",
+                "result_id": result_node,
+                "valid_if": ["consumer is external_orchestrator"],
+            },
+            {
+                "obligation": "future_run_control_only",
+                "result_id": result_node,
+                "valid_if": ["consumer exec differs from observed exec"],
+            },
+            {
+                "obligation": "result_consumed_only_after_exec_end",
+                "result_id": result_node,
+                "valid_if": ["same-execution consumption happens only after exec_end"],
+            },
+        ]
 
     return {
         "classification": "causal_paradox",
@@ -87,7 +112,7 @@ def repair_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
             "why_unsafe": "The current execution consumes a prediction or observation result about itself.",
         },
         "repair_graph": repair_graph,
-        "proof_obligations": [obligation],
+        "proof_obligations": obligations,
         "recommendations": [
             "Route the prediction result to an external orchestrator.",
             "Let the orchestrator stop, restart, or schedule a future run.",
@@ -115,10 +140,14 @@ def format_human(result: dict[str, Any]) -> str:
     if result["proof_obligations"]:
         lines.append("proof_obligations:")
         for obligation in result["proof_obligations"]:
-            lines.append(
-                f"  {obligation['obligation']}: forbid {obligation['forbidden_consumer']} "
-                f"from consuming result for {obligation['target_exec_id']}"
-            )
+            forbidden = obligation.get("forbidden_consumer") or obligation.get("forbidden_consumer_exec_id")
+            if forbidden:
+                lines.append(
+                    f"  {obligation['obligation']}: forbid {forbidden} "
+                    f"from consuming result {obligation.get('result_id')}"
+                )
+            else:
+                lines.append(f"  {obligation['obligation']}: result {obligation.get('result_id')}")
     if result["recommendations"]:
         lines.append("recommendations:")
         lines.extend(f"  - {item}" for item in result["recommendations"])

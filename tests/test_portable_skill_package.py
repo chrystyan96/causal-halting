@@ -25,6 +25,10 @@ class PortableSkillPackageTests(unittest.TestCase):
             "scripts/chc_repair.py",
             "scripts/chc_workflow_adapter.py",
             "scripts/chc_verify_repair.py",
+            "scripts/chc_otel_adapter.py",
+            "scripts/chc_langgraph_adapter.py",
+            "scripts/chc_report.py",
+            "scripts/chc_eval_design_ir.py",
             "examples/diagonal.chc",
             "examples/diagonal.graph",
             "examples/qe-valid-acyclic.chc",
@@ -35,6 +39,11 @@ class PortableSkillPackageTests(unittest.TestCase):
             "examples/post-end-audit.trace.jsonl",
             "examples/self-prediction.design-ir.json",
             "examples/self-prediction.analysis.json",
+            "examples/otel-self-prediction.json",
+            "examples/langgraph-future-run.json",
+            "examples/design-ir-corpus/current-run-self-feedback/expected.design-ir.json",
+            "examples/design-ir-corpus/portuguese-external-orchestrator/expected.design-ir.json",
+            "examples/design-ir-corpus/spanish-ambiguous-consumer/expected.design-ir.json",
         ]
 
         missing = [path for path in required_paths if not (SKILL_ROOT / path).is_file()]
@@ -50,6 +59,10 @@ class PortableSkillPackageTests(unittest.TestCase):
             "chc_repair.py",
             "chc_workflow_adapter.py",
             "chc_verify_repair.py",
+            "chc_otel_adapter.py",
+            "chc_langgraph_adapter.py",
+            "chc_report.py",
+            "chc_eval_design_ir.py",
         ):
             root_checker = (REPO_ROOT / "scripts" / script_name).read_text(encoding="utf-8")
             skill_checker = (SKILL_ROOT / "scripts" / script_name).read_text(encoding="utf-8")

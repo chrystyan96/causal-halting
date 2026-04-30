@@ -5,4 +5,7 @@ theme: minima
 header_pages:
   - index.md
   - chc-0.md
+  - case-studies.md
+  - evaluation.md
+  - otel-instrumentation.md
   - publication.md

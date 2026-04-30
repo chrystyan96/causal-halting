@@ -4,9 +4,10 @@
 The supported input is intentionally small and dependency-free:
 
 {
+  "design_ir_version": "1.0",
   "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
   "observations": [{"observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}],
-  "controls": [{"result": "r-1", "target_exec": "run-1", "purpose": "strategy_change"}]
+  "controls": [{"id": "ctrl-1", "result": "r-1", "target_exec": "run-1", "timing": "during_observed_execution", "purpose": "strategy_change"}]
 }
 """
 
@@ -84,11 +85,15 @@ def validate_workflow(workflow: dict[str, Any]) -> list[str]:
         if not isinstance(control, dict):
             errors.append(f"controls[{index}] must be an object")
             continue
+        if "id" in control and not isinstance(control.get("id"), str):
+            errors.append(f"controls[{index}].id must be a string when present")
         if control.get("result") not in result_ids:
             errors.append(f"controls[{index}].result must reference an observation result")
         target = control.get("target_exec")
         if target is not None and target not in exec_ids:
             errors.append(f"controls[{index}].target_exec must reference an execution when present")
+        if target is None and "consumer" in control and not isinstance(control.get("consumer"), str):
+            errors.append(f"controls[{index}].consumer must be a string when present")
     return errors
 
 

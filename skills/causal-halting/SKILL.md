@@ -44,6 +44,8 @@ To use the CHC-0 lens for every relevant question in the current session, the us
    - CHC calls inline their body and accumulate edges.
    - For natural-language designs, the LLM must interpret semantic roles into `DesignIR`, then classify deterministically from that IR.
    - Never classify prose directly. Never use keyword presence as evidence.
+   - Use `design_ir_version: "1.0"` and include `semantic_evidence` for auditability.
+   - Valid DesignIR control timing values are `during_observed_execution`, `after_observed_execution`, `future_execution`, `external_controller`, and `unknown`.
    - For JSONL traces, use event identity (`exec_id`, `result_id`) rather than prose inference.
 
 5. Check `acyclic_unif`.
@@ -119,7 +121,7 @@ CHC-0 does not decide all halting questions.
 
 Use `scripts/chc_check.py` for explicit graph DSL or mini-CHC artifacts. The checker uses Python standard library only.
 
-Use `scripts/chc_design_analyze.py` for explicit `DesignIR`, `scripts/chc_trace_check.py` for JSONL traces, `scripts/chc_workflow_adapter.py` for generic workflow JSON, `scripts/chc_repair.py` for causal repair reports, and `scripts/chc_verify_repair.py` for before/after trace verification.
+Use `scripts/chc_design_analyze.py` for explicit `DesignIR`, `scripts/chc_trace_check.py` for JSONL traces, `scripts/chc_workflow_adapter.py` for generic workflow JSON, `scripts/chc_otel_adapter.py` for explicitly annotated OpenTelemetry JSON, `scripts/chc_langgraph_adapter.py` for structured LangGraph-style JSON, `scripts/chc_eval_design_ir.py` for corpus fixture evaluation, `scripts/chc_repair.py` for causal repair reports, `scripts/chc_verify_repair.py` for before/after trace verification, and `scripts/chc_report.py` for Markdown/Mermaid reports.
 
 Run from the skill root:
 
@@ -131,7 +133,11 @@ python scripts/chc_design_analyze.py examples/self-prediction.design-ir.json
 python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
 python scripts/chc_repair.py examples/self-prediction.analysis.json
 python scripts/chc_workflow_adapter.py examples/generic-workflow.json
+python scripts/chc_otel_adapter.py examples/otel-self-prediction.json
+python scripts/chc_langgraph_adapter.py examples/langgraph-future-run.json
 python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
+python scripts/chc_report.py examples/self-prediction.analysis.json
+python scripts/chc_eval_design_ir.py examples/design-ir-corpus
 ```
 
 Classify checker output as follows:
@@ -156,8 +162,11 @@ examples/self-prediction.trace.jsonl same-run feedback trace
 examples/future-run.trace.jsonl safe future-run trace
 examples/post-end-audit.trace.jsonl safe post-run audit trace
 examples/generic-workflow.json generic workflow adapter input
+examples/otel-self-prediction.json annotated OpenTelemetry adapter input
+examples/langgraph-future-run.json structured LangGraph-style adapter input
 examples/self-prediction.design-ir.json explicit DesignIR input
 examples/self-prediction.analysis.json repair input
+examples/design-ir-corpus/ multilingual DesignIR extraction fixtures
 ```
 
 ## References

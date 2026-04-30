@@ -323,22 +323,89 @@ def adapt_workflow(root: Path, target: str | None) -> dict[str, Any]:
     }
 
 
+def adapt_structured(root: Path, target: str | None, adapter_name: str, mode: str, usage: str) -> dict[str, Any]:
+    if not target:
+        return command_file_error(root, mode, usage)
+
+    path = resolve_existing_file(root, target)
+    if path is None:
+        return command_file_error(root, mode, f"File not found: {root / target}")
+
+    adapter = load_script_module(adapter_name)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return command_file_error(root, mode, f"Invalid JSON: {exc}")
+
+    if adapter_name == "chc_otel_adapter":
+        events = adapter.otel_to_events(payload)
+        errors = adapter.validate_events(events)
+    else:
+        if not isinstance(payload, dict):
+            return command_file_error(root, mode, "Input must be a JSON object.")
+        errors = adapter.validate_payload(payload)
+        events = adapter.langgraph_to_events(payload)
+    if errors:
+        return command_file_error(root, mode, "; ".join(errors))
+    return {
+        "mode": mode,
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": f"Converted {path} to CHC trace events.",
+        "classification": "not_analyzed",
+        "analysis_output": adapter.format_jsonl(events),
+        "analysis_json": {"events": events},
+    }
+
+
+def eval_design_ir(root: Path, target: str | None) -> dict[str, Any]:
+    corpus = resolve_existing_dir(root, target or "examples/design-ir-corpus")
+    if corpus is None:
+        return command_file_error(root, "eval-design-ir", "Corpus directory not found.")
+
+    evaluator = load_script_module("chc_eval_design_ir")
+    result = evaluator.evaluate_corpus(corpus)
+    return {
+        "mode": "eval-design-ir",
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": f"Evaluated DesignIR corpus {corpus}",
+        "classification": result["status"],
+        "analysis_output": evaluator.format_human(result),
+        "analysis_json": result,
+    }
+
+
 def verify_repair(root: Path, target: str | None) -> dict[str, Any]:
     if not target:
-        return command_file_error(root, "verify-repair", "Missing trace paths. Usage: /causal-halting verify-repair <before-jsonl> <after-jsonl>")
+        return command_file_error(root, "verify-repair", "Missing trace paths. Usage: /causal-halting verify-repair <before-jsonl> <after-jsonl> [repair-json]")
 
     parts = target.split()
-    if len(parts) != 2:
-        return command_file_error(root, "verify-repair", "verify-repair requires exactly two trace file paths.")
+    if len(parts) not in {2, 3}:
+        return command_file_error(root, "verify-repair", "verify-repair requires two trace file paths and optional repair JSON.")
     before = resolve_existing_file(root, parts[0])
     after = resolve_existing_file(root, parts[1])
     if before is None or after is None:
         return command_file_error(root, "verify-repair", "One or both trace files were not found.")
+    obligations = None
+    if len(parts) == 3:
+        repair_path = resolve_existing_file(root, parts[2])
+        if repair_path is None:
+            return command_file_error(root, "verify-repair", "Repair JSON file was not found.")
+        try:
+            repair = json.loads(repair_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            return command_file_error(root, "verify-repair", f"Invalid repair JSON: {exc}")
+        if isinstance(repair, dict) and isinstance(repair.get("proof_obligations"), list):
+            obligations = repair["proof_obligations"]
 
     verifier = load_script_module("chc_verify_repair")
     result = verifier.verify_repair(
         before.read_text(encoding="utf-8"),
         after.read_text(encoding="utf-8"),
+        obligations,
     )
     return {
         "mode": "verify-repair",
@@ -349,6 +416,32 @@ def verify_repair(root: Path, target: str | None) -> dict[str, Any]:
         "classification": result["verification"],
         "analysis_output": verifier.format_human(result),
         "analysis_json": result,
+    }
+
+
+def report_file(root: Path, target: str | None) -> dict[str, Any]:
+    if not target:
+        return command_file_error(root, "report", "Missing analysis JSON file path. Usage: /causal-halting report <analysis-json>")
+
+    path = resolve_existing_file(root, target)
+    if path is None:
+        return command_file_error(root, "report", f"File not found: {root / target}")
+    reporter = load_script_module("chc_report")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return command_file_error(root, "report", f"Invalid JSON: {exc}")
+    if not isinstance(data, dict):
+        return command_file_error(root, "report", "Input must be a JSON object.")
+    return {
+        "mode": "report",
+        "enabled": read_project_enabled(root),
+        "scope": "project",
+        "state_path": str(project_state_path(root)),
+        "message": f"Rendered CHC report for {path}",
+        "classification": data.get("classification", data.get("verification", "unknown")),
+        "analysis_output": reporter.render_markdown(data),
+        "analysis_json": data,
     }
 
 
@@ -367,6 +460,15 @@ def resolve_existing_file(root: Path, target: str) -> Path | None:
     if not path.is_absolute():
         path = root / path
     if path.exists() and path.is_file():
+        return path
+    return None
+
+
+def resolve_existing_dir(root: Path, target: str) -> Path | None:
+    path = Path(target).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    if path.exists() and path.is_dir():
         return path
     return None
 
@@ -438,14 +540,34 @@ def command_result(root: Path, mode: str, target: str | None = None) -> dict[str
         return repair_file(root, target)
     if normalized == "adapt-workflow":
         return adapt_workflow(root, target)
+    if normalized == "adapt-otel":
+        return adapt_structured(
+            root,
+            target,
+            "chc_otel_adapter",
+            "adapt-otel",
+            "Missing OpenTelemetry JSON file path. Usage: /causal-halting adapt-otel <otel-json>",
+        )
+    if normalized == "adapt-langgraph":
+        return adapt_structured(
+            root,
+            target,
+            "chc_langgraph_adapter",
+            "adapt-langgraph",
+            "Missing LangGraph-style JSON file path. Usage: /causal-halting adapt-langgraph <langgraph-json>",
+        )
+    if normalized == "eval-design-ir":
+        return eval_design_ir(root, target)
     if normalized == "verify-repair":
         return verify_repair(root, target)
+    if normalized == "report":
+        return report_file(root, target)
     return {
         "mode": "invalid",
         "enabled": read_project_enabled(root),
         "scope": "project",
         "state_path": str(project_state_path(root)),
-        "message": "Invalid mode. Use: on, off, status, explain, check <file>, analyze-design <text-or-file>, analyze-trace <jsonl-file>, repair <analysis-json>, adapt-workflow <workflow-json>, or verify-repair <before> <after>.",
+        "message": "Invalid mode. Use: on, off, status, explain, check <file>, analyze-design <design-ir-json>, analyze-trace <jsonl-file>, repair <analysis-json>, adapt-workflow <workflow-json>, adapt-otel <otel-json>, adapt-langgraph <langgraph-json>, eval-design-ir <corpus-dir>, verify-repair <before> <after> [repair-json], or report <analysis-json>.",
     }
 
 
@@ -459,7 +581,17 @@ def format_command_human(result: dict[str, Any]) -> str:
         )
     if result["mode"] == "check" and "checker_output" in result:
         return f"{result['message']}\n{result['checker_output']}"
-    if result["mode"] in {"analyze-design", "analyze-trace", "repair", "adapt-workflow", "verify-repair"} and "analysis_output" in result:
+    if result["mode"] in {
+        "analyze-design",
+        "analyze-trace",
+        "repair",
+        "adapt-workflow",
+        "adapt-otel",
+        "adapt-langgraph",
+        "eval-design-ir",
+        "verify-repair",
+        "report",
+    } and "analysis_output" in result:
         return f"{result['message']}\n{result['analysis_output']}"
     status = "enabled" if result.get("enabled") else "disabled"
     return (

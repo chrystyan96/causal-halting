@@ -24,6 +24,21 @@ chc_trace_check = load_script("chc_trace_check")
 chc_repair = load_script("chc_repair")
 chc_workflow_adapter = load_script("chc_workflow_adapter")
 chc_verify_repair = load_script("chc_verify_repair")
+chc_otel_adapter = load_script("chc_otel_adapter")
+chc_langgraph_adapter = load_script("chc_langgraph_adapter")
+chc_report = load_script("chc_report")
+chc_eval_design_ir = load_script("chc_eval_design_ir")
+
+
+def design_ir(executions, observations, controls, uncertain=None):
+    return {
+        "design_ir_version": "1.0",
+        "executions": executions,
+        "observations": observations,
+        "controls": controls,
+        "semantic_evidence": [{"source": "test", "claim": "structured fixture"}],
+        "uncertain": uncertain or [],
+    }
 
 
 class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
@@ -52,14 +67,19 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
     def test_design_schema_accepts_valid_design_analysis(self):
         result = chc_design_analyze.analyze_design(
             json.dumps(
-                {
-                    "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
-                    "observations": [
-                        {"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}
+                design_ir(
+                    [{"id": "run-1", "program": "AgentRun", "input": "task"}],
+                    [{"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}],
+                    [
+                        {
+                            "id": "ctrl-1",
+                            "result": "r-1",
+                            "target_exec": "run-1",
+                            "timing": "during_observed_execution",
+                            "action": "change_strategy",
+                        }
                     ],
-                    "controls": [{"result": "r-1", "target_exec": "run-1", "action": "change_strategy"}],
-                    "uncertain": [],
-                }
+                )
             )
         )
 
@@ -68,14 +88,19 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
     def test_design_ir_causal_paradox(self):
         result = chc_design_analyze.analyze_design(
             json.dumps(
-                {
-                    "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
-                    "observations": [
-                        {"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}
+                design_ir(
+                    [{"id": "run-1", "program": "AgentRun", "input": "task"}],
+                    [{"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}],
+                    [
+                        {
+                            "id": "ctrl-1",
+                            "result": "r-1",
+                            "target_exec": "run-1",
+                            "timing": "during_observed_execution",
+                            "action": "change_strategy",
+                        }
                     ],
-                    "controls": [{"result": "r-1", "target_exec": "run-1", "action": "change_strategy"}],
-                    "uncertain": [],
-                }
+                )
             )
         )
 
@@ -85,14 +110,19 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
     def test_non_keyword_design_ir_causal_paradox(self):
         result = chc_design_analyze.analyze_design(
             json.dumps(
-                {
-                    "executions": [{"id": "run-1", "program": "Worker", "input": "task"}],
-                    "observations": [
-                        {"id": "obs-1", "observer": "Evaluator", "target_exec": "run-1", "result": "r-1"}
+                design_ir(
+                    [{"id": "run-1", "program": "Worker", "input": "task"}],
+                    [{"id": "obs-1", "observer": "Evaluator", "target_exec": "run-1", "result": "r-1"}],
+                    [
+                        {
+                            "id": "ctrl-1",
+                            "result": "r-1",
+                            "target_exec": "run-1",
+                            "timing": "during_observed_execution",
+                            "action": "revise_route",
+                        }
                     ],
-                    "controls": [{"result": "r-1", "target_exec": "run-1", "action": "revise_route"}],
-                    "uncertain": [],
-                }
+                )
             )
         )
 
@@ -101,17 +131,22 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
     def test_design_ir_future_run_is_valid_acyclic(self):
         result = chc_design_analyze.analyze_design(
             json.dumps(
-                {
-                    "executions": [
+                design_ir(
+                    [
                         {"id": "run-1", "program": "AgentRun", "input": "task"},
                         {"id": "run-2", "program": "AgentRun", "input": "retry"},
                     ],
-                    "observations": [
-                        {"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}
+                    [{"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}],
+                    [
+                        {
+                            "id": "ctrl-1",
+                            "result": "r-1",
+                            "target_exec": "run-2",
+                            "timing": "future_execution",
+                            "action": "retry",
+                        }
                     ],
-                    "controls": [{"result": "r-1", "target_exec": "run-2", "action": "retry"}],
-                    "uncertain": [],
-                }
+                )
             )
         )
 
@@ -120,14 +155,12 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
     def test_design_ir_missing_consumer_is_insufficient_info(self):
         result = chc_design_analyze.analyze_design(
             json.dumps(
-                {
-                    "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
-                    "observations": [
-                        {"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}
-                    ],
-                    "controls": [{"result": "r-1", "action": "use_result"}],
-                    "uncertain": [],
-                }
+                design_ir(
+                    [{"id": "run-1", "program": "AgentRun", "input": "task"}],
+                    [{"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}],
+                    [],
+                    [{"field": "controls", "reason": "The consumer of r-1 is not specified."}],
+                )
             )
         )
 
@@ -204,9 +237,18 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
 
     def test_generic_workflow_adapter_outputs_trace_events(self):
         workflow = {
+            "design_ir_version": "1.0",
             "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
-            "observations": [{"observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}],
-            "controls": [{"result": "r-1", "target_exec": "run-1", "purpose": "strategy_change"}],
+            "observations": [{"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}],
+            "controls": [
+                {
+                    "id": "ctrl-1",
+                    "result": "r-1",
+                    "target_exec": "run-1",
+                    "timing": "during_observed_execution",
+                    "purpose": "strategy_change",
+                }
+            ],
         }
 
         events = chc_workflow_adapter.workflow_to_events(workflow)
@@ -254,6 +296,74 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
         result = chc_verify_repair.verify_repair(before, after)
 
         self.assertEqual(result["verification"], "passed")
+
+    def test_design_ir_corpus_expected_classifications(self):
+        for case_dir in (ROOT / "examples" / "design-ir-corpus").iterdir():
+            if not case_dir.is_dir():
+                continue
+            with self.subTest(case=case_dir.name):
+                design = json.loads((case_dir / "expected.design-ir.json").read_text(encoding="utf-8"))
+                expected = json.loads((case_dir / "expected.analysis.json").read_text(encoding="utf-8"))
+
+                result = chc_design_analyze.analyze_design(json.dumps(design))
+
+                self.assertEqual(result["classification"], expected["classification"])
+
+    def test_otel_adapter_outputs_trace_events(self):
+        payload = json.loads((ROOT / "examples" / "otel-self-prediction.json").read_text(encoding="utf-8"))
+
+        events = chc_otel_adapter.otel_to_events(payload)
+        result = chc_trace_check.analyze_events(events)
+
+        self.assertEqual(result["classification"], "causal_paradox")
+
+    def test_langgraph_adapter_outputs_trace_events(self):
+        payload = json.loads((ROOT / "examples" / "langgraph-future-run.json").read_text(encoding="utf-8"))
+
+        events = chc_langgraph_adapter.langgraph_to_events(payload)
+        result = chc_trace_check.analyze_events(events)
+
+        self.assertEqual(result["classification"], "valid_acyclic")
+
+    def test_verify_repair_fails_specific_obligation_when_wrong_boundary_used(self):
+        before = "\n".join(
+            [
+                json.dumps({"type": "exec_start", "exec_id": "run-1", "program": "AgentRun", "input": "task-a"}),
+                json.dumps({"type": "observe", "observer": "Supervisor", "target_exec_id": "run-1", "result_id": "r-1"}),
+                json.dumps({"type": "consume", "result_id": "r-1", "consumer_exec_id": "run-1", "purpose": "strategy_change"}),
+            ]
+        )
+        after = "\n".join(
+            [
+                json.dumps({"type": "exec_start", "exec_id": "run-1", "program": "AgentRun", "input": "task-a"}),
+                json.dumps({"type": "observe", "observer": "Supervisor", "target_exec_id": "run-1", "result_id": "r-1"}),
+                json.dumps({"type": "consume", "result_id": "r-1", "consumer": "Orchestrator", "purpose": "stop_or_retry"}),
+            ]
+        )
+        obligations = [{"obligation": "future_run_control_only", "result_id": "r-1"}]
+
+        result = chc_verify_repair.verify_repair(before, after, obligations)
+
+        self.assertEqual(result["verification"], "failed")
+        self.assertEqual(result["proof_obligations"][0]["status"], "failed")
+
+    def test_report_renders_mermaid_graph(self):
+        report = chc_report.render_markdown(
+            {
+                "classification": "causal_paradox",
+                "graph": ["E(AgentRun,task) -> R(AgentRun,task)", "R(AgentRun,task) -> E(AgentRun,task)"],
+                "explanation": "Feedback detected.",
+            }
+        )
+
+        self.assertIn("```mermaid", report)
+        self.assertIn("flowchart LR", report)
+
+    def test_eval_design_ir_corpus_passes(self):
+        result = chc_eval_design_ir.evaluate_corpus(ROOT / "examples" / "design-ir-corpus")
+
+        self.assertEqual(result["status"], "passed")
+        self.assertGreaterEqual(result["case_count"], 3)
 
 
 if __name__ == "__main__":

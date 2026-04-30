@@ -21,6 +21,16 @@ Experimental skills PR:
 
 [openai/skills#380](https://github.com/openai/skills/pull/380)
 
+Current submitted branch:
+
+```text
+chrystyan96:add-causal-halting-experimental -> openai:main
+```
+
+The current local package is v1.8 and includes DesignIR v1.0 analysis,
+deterministic trace checking, OpenTelemetry/LangGraph adapters, proof-obligation
+repair verification, and Markdown/Mermaid reports.
+
 ## Codex Plugin Proposal
 
 Official Codex plugin proposal package:
@@ -29,6 +39,15 @@ Official Codex plugin proposal package:
 
 
 
+
+The shorter first-post version is:
+
+
+## LinkedIn Draft
+
+The LinkedIn summary draft is maintained at:
+
+[linkedin-post.md](https://github.com/chrystyan96/causal-halting/blob/master/submissions/linkedin-post.md)
 
 ## Citation Status
 

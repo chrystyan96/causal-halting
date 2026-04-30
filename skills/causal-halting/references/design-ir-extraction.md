@@ -24,6 +24,7 @@ analyzed.
 
 ```json
 {
+  "design_ir_version": "1.0",
   "executions": [
     {"id": "run-1", "program": "AgentRun", "input": "task"}
   ],
@@ -31,11 +32,33 @@ analyzed.
     {"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}
   ],
   "controls": [
-    {"result": "r-1", "target_exec": "run-1", "action": "change_strategy"}
+    {
+      "id": "ctrl-1",
+      "result": "r-1",
+      "target_exec": "run-1",
+      "timing": "during_observed_execution",
+      "action": "change_strategy"
+    }
+  ],
+  "semantic_evidence": [
+    {"source": "user description", "claim": "The result changes the same active run."}
   ],
   "uncertain": []
 }
 ```
+
+Required timing values:
+
+```text
+during_observed_execution
+after_observed_execution
+future_execution
+external_controller
+unknown
+```
+
+Classification is deterministic from DesignIR. The LLM may write
+`semantic_evidence`, but it must not write the final classification as evidence.
 
 ## Ambiguity
 
@@ -43,6 +66,7 @@ If the consumer of an observation result is unclear, do not guess:
 
 ```json
 {
+  "design_ir_version": "1.0",
   "executions": [
     {"id": "run-1", "program": "AgentRun", "input": "task"}
   ],
@@ -50,6 +74,12 @@ If the consumer of an observation result is unclear, do not guess:
     {"id": "obs-1", "observer": "Evaluator", "target_exec": "run-1", "result": "r-1"}
   ],
   "controls": [],
+  "semantic_evidence": [
+    {
+      "source": "user description",
+      "claim": "The consumer of the observation result is unclear."
+    }
+  ],
   "uncertain": [
     {
       "field": "controls.target_exec",
@@ -71,6 +101,7 @@ DesignIR:
 
 ```json
 {
+  "design_ir_version": "1.0",
   "executions": [
     {"id": "run-1", "program": "Worker", "input": "task"}
   ],
@@ -78,7 +109,16 @@ DesignIR:
     {"id": "obs-1", "observer": "Evaluator", "target_exec": "run-1", "result": "r-1"}
   ],
   "controls": [
-    {"result": "r-1", "target_exec": "run-1", "action": "revise_route"}
+    {
+      "id": "ctrl-1",
+      "result": "r-1",
+      "target_exec": "run-1",
+      "timing": "during_observed_execution",
+      "action": "revise_route"
+    }
+  ],
+  "semantic_evidence": [
+    {"source": "English example", "claim": "The active worker consumes the assessment result."}
   ],
   "uncertain": []
 }
@@ -94,6 +134,7 @@ DesignIR:
 
 ```json
 {
+  "design_ir_version": "1.0",
   "executions": [
     {"id": "run-1", "program": "AgentRun", "input": "task"}
   ],
@@ -101,7 +142,16 @@ DesignIR:
     {"id": "obs-1", "observer": "Evaluator", "target_exec": "run-1", "result": "r-1"}
   ],
   "controls": [
-    {"result": "r-1", "target_exec": "run-1", "action": "change_plan"}
+    {
+      "id": "ctrl-1",
+      "result": "r-1",
+      "target_exec": "run-1",
+      "timing": "during_observed_execution",
+      "action": "change_plan"
+    }
+  ],
+  "semantic_evidence": [
+    {"source": "Portuguese example", "claim": "A mesma rodada muda o plano."}
   ],
   "uncertain": []
 }
@@ -117,6 +167,7 @@ DesignIR:
 
 ```json
 {
+  "design_ir_version": "1.0",
   "executions": [
     {"id": "run-1", "program": "ActiveProcess", "input": "task"}
   ],
@@ -124,7 +175,16 @@ DesignIR:
     {"id": "obs-1", "observer": "Evaluator", "target_exec": "run-1", "result": "r-1"}
   ],
   "controls": [
-    {"result": "r-1", "target_exec": "run-1", "action": "change_route"}
+    {
+      "id": "ctrl-1",
+      "result": "r-1",
+      "target_exec": "run-1",
+      "timing": "during_observed_execution",
+      "action": "change_route"
+    }
+  ],
+  "semantic_evidence": [
+    {"source": "Spanish example", "claim": "La misma ejecucion consume la evaluacion."}
   ],
   "uncertain": []
 }

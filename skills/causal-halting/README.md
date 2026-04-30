@@ -39,19 +39,26 @@ causal-halting/
     chc_design_schema.py
     chc_trace_check.py
     chc_repair.py
+    chc_report.py
+    chc_eval_design_ir.py
     chc_workflow_adapter.py
+    chc_otel_adapter.py
+    chc_langgraph_adapter.py
     chc_verify_repair.py
   examples/
     diagonal.chc
     diagonal.graph
     future-run.trace.jsonl
     generic-workflow.json
+    langgraph-future-run.json
+    otel-self-prediction.json
     post-end-audit.trace.jsonl
     qe-valid-acyclic.chc
     safe-supervisor.graph
     self-prediction.analysis.json
     self-prediction.design-ir.json
     self-prediction.trace.jsonl
+    design-ir-corpus/
 ```
 
 ## Install
@@ -112,7 +119,11 @@ python scripts/chc_design_analyze.py examples/self-prediction.design-ir.json
 python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
 python scripts/chc_repair.py examples/self-prediction.analysis.json
 python scripts/chc_workflow_adapter.py examples/generic-workflow.json
+python scripts/chc_otel_adapter.py examples/otel-self-prediction.json
+python scripts/chc_langgraph_adapter.py examples/langgraph-future-run.json
 python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
+python scripts/chc_report.py examples/self-prediction.analysis.json
+python scripts/chc_eval_design_ir.py examples/design-ir-corpus
 ```
 
 Checker classifications:
@@ -180,14 +191,18 @@ The supervisor observes a separate worker. The result does not feed back into th
 
 ## Design, Trace, And Repair Workflows
 
-The portable skill also includes the v1.6 analysis scripts:
+The portable skill also includes the v1.7 analysis scripts:
 
 ```text
 chc_design_analyze.py  analyze explicit DesignIR JSON
 chc_design_schema.py   validate design-analysis JSON
 chc_trace_check.py     deterministically analyze JSONL execution traces
 chc_repair.py          generate repair reports and proof obligations
+chc_report.py          render Markdown/Mermaid reports
+chc_eval_design_ir.py  evaluate DesignIR corpus fixtures without parsing prose
 chc_workflow_adapter.py convert generic workflow JSON to CHC trace JSONL
+chc_otel_adapter.py    convert explicitly annotated OpenTelemetry JSON to CHC trace JSONL
+chc_langgraph_adapter.py convert structured LangGraph-style JSON to CHC trace JSONL
 chc_verify_repair.py   verify before/after trace repair
 ```
 
@@ -200,7 +215,7 @@ Trace schema:
 {"type":"exec_end","exec_id":"run-1","status":"halted"}
 ```
 
-Repair reports move same-run prediction feedback to a separate orchestrator/future-run boundary and emit the proof obligation that the observed execution must not consume its own prediction result before it ends.
+Repair reports move same-run prediction feedback to a separate orchestrator/future-run boundary and emit proof obligations. `chc_verify_repair.py` checks that the after trace removes same-run pre-end consumption and, when supplied with repair JSON, satisfies the listed obligations.
 
 ## No Lexical Analysis
 
@@ -210,6 +225,10 @@ If prose is passed directly to `chc_design_analyze.py`, it returns `needs_design
 
 See `references/design-ir-extraction.md` for the semantic extraction contract.
 
+DesignIR v1.0 requires `design_ir_version`, stable IDs, explicit observation results, explicit control timing, `semantic_evidence`, and `uncertain` entries when the consumer is unclear.
+
+The `examples/design-ir-corpus/` fixtures separate natural-language descriptions from expected `DesignIR`. `chc_eval_design_ir.py` validates the expected JSON artifacts and expected classifications only; it does not classify prose.
+
 ## Limits
 
 - Does not solve the classical Halting Problem.
@@ -217,7 +236,7 @@ See `references/design-ir-extraction.md` for the semantic extraction contract.
 - Checks explicit CHC-0 graph DSL and mini-CHC artifacts only.
 - Natural-language designs must be interpreted into `DesignIR` by the LLM before script analysis.
 - Deterministically checks traces only when they follow the documented JSONL schema.
-- Converts only the documented generic workflow JSON format; framework adapters are future work.
+- Converts only documented structured formats. OpenTelemetry requires explicit `chc.*` attributes, and LangGraph-style input requires explicit causal fields.
 - Produces causal refactoring guidance, not arbitrary code patches.
 - Treats semantic undecidability as `unproved`, not as `causal_paradox`.
 - Does not include the full Codex plugin hook or `/causal-halting` slash command. Those live in the full plugin repository.

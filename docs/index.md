@@ -58,22 +58,30 @@ and then changes itself because of the answer
 
 Causal Halting gives a way to notice that boundary before it becomes an architectural habit.
 
-## Beyond A Warning Label
+## Practical Verification Pipeline
 
-The current plugin adds three practical workflows:
+The current plugin is no longer only a prompt-level warning label. The useful
+path is:
 
 ```text
-analyze-design  analyze DesignIR extracted by the LLM from a design
-analyze-trace   deterministically check JSONL execution events
-adapt-workflow  convert generic workflow JSON into CHC trace events
-repair          convert same-run feedback into an orchestrator/future-run boundary
-verify-repair   compare before/after traces
+LLM extracts DesignIR
+-> deterministic verifier classifies it
+-> trace adapters map real events into CHC events
+-> repair emits proof obligations
+-> before/after traces verify the boundary
+-> Markdown/Mermaid report explains the result
 ```
 
-This moves the project from architectural hygiene toward causal verification:
+The practical commands are:
 
 ```text
-LLM extracts DesignIR -> verifier classifies feedback -> propose repair -> verify before/after trace
+analyze-design   check explicit DesignIR v1.0
+analyze-trace    check JSONL execution events
+adapt-otel       convert annotated OpenTelemetry JSON
+adapt-langgraph  convert structured LangGraph-style JSON
+repair           propose a safer orchestration boundary
+verify-repair    check before/after traces and proof obligations
+report           render Markdown/Mermaid output
 ```
 
 The proof obligation is simple:
@@ -90,11 +98,25 @@ prose into `DesignIR`; deterministic tools then analyze only that structured
 artifact. This keeps the method language-independent and avoids trusting
 keywords as evidence.
 
+## Case Studies
+
+The repository includes small cases for the three useful boundaries:
+
+```text
+self-feedback       causal_paradox
+external controller valid_acyclic
+post-run audit      valid_acyclic
+```
+
+See [case studies](./case-studies.md).
+
 ## Project Links
 
 - Repository: [github.com/chrystyan96/causal-halting](https://github.com/chrystyan96/causal-halting)
 - Technical note: [CHC-0 technical overview](./chc-0.md)
+- Case studies: [practical architecture cases](./case-studies.md)
 - Evaluation notes: [measuring answer quality](./evaluation.md)
+- OpenTelemetry guide: [explicit CHC trace attributes](./otel-instrumentation.md)
 - Publication status: [submissions and links](./publication.md)
 - OpenAI Skills PR: [openai/skills#380](https://github.com/openai/skills/pull/380)
 

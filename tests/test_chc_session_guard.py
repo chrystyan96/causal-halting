@@ -149,11 +149,21 @@ class CausalHaltingSessionGuardTests(unittest.TestCase):
             path.write_text(
                 json.dumps(
                     {
+                        "design_ir_version": "1.0",
                         "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
                         "observations": [
                             {"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}
                         ],
-                        "controls": [{"result": "r-1", "target_exec": "run-1", "action": "change_strategy"}],
+                        "controls": [
+                            {
+                                "id": "ctrl-1",
+                                "result": "r-1",
+                                "target_exec": "run-1",
+                                "timing": "during_observed_execution",
+                                "action": "change_strategy",
+                            }
+                        ],
+                        "semantic_evidence": [{"source": "test", "claim": "same run control"}],
                         "uncertain": [],
                     }
                 ),
@@ -269,9 +279,18 @@ class CausalHaltingSessionGuardTests(unittest.TestCase):
             workflow.write_text(
                 json.dumps(
                     {
+                        "design_ir_version": "1.0",
                         "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
-                        "observations": [{"observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}],
-                        "controls": [{"result": "r-1", "target_exec": "run-1", "purpose": "strategy_change"}],
+                        "observations": [{"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}],
+                        "controls": [
+                            {
+                                "id": "ctrl-1",
+                                "result": "r-1",
+                                "target_exec": "run-1",
+                                "timing": "during_observed_execution",
+                                "purpose": "strategy_change",
+                            }
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -280,6 +299,47 @@ class CausalHaltingSessionGuardTests(unittest.TestCase):
 
         self.assertEqual(result["mode"], "adapt-workflow")
         self.assertIn('"type": "exec_start"', result["analysis_output"])
+
+    def test_adapt_otel_command_outputs_events(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "otel.json"
+            path.write_text((ROOT / "examples" / "otel-self-prediction.json").read_text(encoding="utf-8"), encoding="utf-8")
+            result = chc_session_guard.command_result(Path(tmp), "adapt-otel", str(path))
+
+        self.assertEqual(result["mode"], "adapt-otel")
+        self.assertIn('"type": "observe"', result["analysis_output"])
+
+    def test_adapt_langgraph_command_outputs_events(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "langgraph.json"
+            path.write_text((ROOT / "examples" / "langgraph-future-run.json").read_text(encoding="utf-8"), encoding="utf-8")
+            result = chc_session_guard.command_result(Path(tmp), "adapt-langgraph", str(path))
+
+        self.assertEqual(result["mode"], "adapt-langgraph")
+        self.assertIn('"type": "consume"', result["analysis_output"])
+
+    def test_report_command_renders_markdown(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "analysis.json"
+            path.write_text(
+                json.dumps({"classification": "valid_acyclic", "graph": ["E(A,x) -> R(A,x)"]}),
+                encoding="utf-8",
+            )
+            result = chc_session_guard.command_result(Path(tmp), "report", str(path))
+
+        self.assertEqual(result["mode"], "report")
+        self.assertIn("```mermaid", result["analysis_output"])
+
+    def test_eval_design_ir_command_reports_passed(self):
+        result = chc_session_guard.command_result(
+            ROOT,
+            "eval-design-ir",
+            str(ROOT / "examples" / "design-ir-corpus"),
+        )
+
+        self.assertEqual(result["mode"], "eval-design-ir")
+        self.assertEqual(result["classification"], "passed")
+        self.assertIn("status: passed", result["analysis_output"])
 
 
 if __name__ == "__main__":

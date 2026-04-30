@@ -150,6 +150,54 @@ cd skills\causal-halting
 python scripts\chc_check.py examples\diagonal.graph
 ```
 
+## Practical Verification Pipeline
+
+The practical tooling uses CHC-0 as a boundary check for agent and workflow
+designs.
+
+Natural language is not classified by scripts. The LLM first writes explicit
+`DesignIR v1.0`:
+
+```text
+executions
+observations
+controls
+uncertain
+semantic_evidence
+```
+
+The deterministic analyzer then classifies that structured artifact.
+
+For runtime evidence, traces use four event types:
+
+```text
+exec_start
+observe
+consume
+exec_end
+```
+
+The same rule applies:
+
+```text
+observe(run-1) -> result r-1 -> consume by run-1 before exec_end(run-1)
+```
+
+is a `causal_paradox`.
+
+OpenTelemetry and LangGraph adapters are available, but they only consume
+explicit causal fields. They do not infer meaning from span names, node names,
+or prose.
+
+Repairs emit proof obligations. The core obligation is:
+
+```text
+prediction_result_not_consumed_by_observed_execution
+```
+
+In plain language: a result produced by observing a run must not be consumed by
+that same run before it ends.
+
 ## Full Reference
 
 The full formal note is in the repository:

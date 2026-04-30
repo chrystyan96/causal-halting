@@ -41,6 +41,8 @@ def validate_design_analysis(data: dict[str, Any]) -> list[str]:
         errors.append("uncertain_edges must be a list")
     if not isinstance(data.get("repair"), list) or not all(isinstance(item, str) for item in data.get("repair", [])):
         errors.append("repair must be a list of strings")
+    if "proof_obligations" in data and not isinstance(data.get("proof_obligations"), list):
+        errors.append("proof_obligations must be a list when present")
     if not isinstance(data.get("explanation"), str):
         errors.append("explanation must be a string")
     return errors

@@ -15,6 +15,16 @@ from pathlib import Path
 from typing import Any
 
 
+DESIGN_IR_VERSION = "1.0"
+ALLOWED_TIMINGS = {
+    "during_observed_execution",
+    "after_observed_execution",
+    "future_execution",
+    "external_controller",
+    "unknown",
+}
+
+
 def safe_label(value: Any, fallback: str) -> str:
     text = str(value if value is not None else fallback)
     return "".join(char if char.isalnum() or char == "_" else "_" for char in text) or fallback
@@ -36,6 +46,20 @@ def repair_for_self_feedback() -> list[str]:
         "Replace self-halting prediction with bounded local progress metrics.",
         "Keep monitor and controller roles separate.",
     ]
+
+
+def default_proof_obligation(result_id: str, observed_exec_id: str) -> dict[str, Any]:
+    return {
+        "obligation": "prediction_result_not_consumed_by_observed_execution",
+        "result_id": result_id,
+        "forbidden_consumer_exec_id": observed_exec_id,
+        "valid_if": [
+            "consumer is external_orchestrator",
+            "consumer exec starts after observed exec ends",
+            "result is audit_only",
+            "consumer is a future execution",
+        ],
+    }
 
 
 def base_roles() -> dict[str, list[str]]:
@@ -65,10 +89,13 @@ def needs_design_ir_result(text: str) -> dict[str, Any]:
 
 def validate_design_ir(data: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+    if data.get("design_ir_version") != DESIGN_IR_VERSION:
+        errors.append(f"design_ir_version must be {DESIGN_IR_VERSION!r}")
     executions = data.get("executions")
     observations = data.get("observations")
     controls = data.get("controls")
     uncertain = data.get("uncertain", [])
+    evidence = data.get("semantic_evidence", [])
     if not isinstance(executions, list):
         errors.append("executions must be a list")
     if not isinstance(observations, list):
@@ -77,11 +104,14 @@ def validate_design_ir(data: dict[str, Any]) -> list[str]:
         errors.append("controls must be a list")
     if not isinstance(uncertain, list):
         errors.append("uncertain must be a list when present")
+    if not isinstance(evidence, list):
+        errors.append("semantic_evidence must be a list when present")
     if errors:
         return errors
 
     exec_ids: set[str] = set()
     result_ids: set[str] = set()
+    observation_ids: set[str] = set()
     for index, execution in enumerate(executions):
         if not isinstance(execution, dict):
             errors.append(f"executions[{index}] must be an object")
@@ -89,12 +119,24 @@ def validate_design_ir(data: dict[str, Any]) -> list[str]:
         if not isinstance(execution.get("id"), str):
             errors.append(f"executions[{index}].id must be a string")
             continue
+        if not isinstance(execution.get("program"), str):
+            errors.append(f"executions[{index}].program must be a string")
+        if "input" not in execution:
+            errors.append(f"executions[{index}].input is required")
         exec_ids.add(execution["id"])
 
     for index, observation in enumerate(observations):
         if not isinstance(observation, dict):
             errors.append(f"observations[{index}] must be an object")
             continue
+        if not isinstance(observation.get("id"), str):
+            errors.append(f"observations[{index}].id must be a string")
+        elif observation["id"] in observation_ids:
+            errors.append(f"observations[{index}].id must be unique")
+        else:
+            observation_ids.add(observation["id"])
+        if not isinstance(observation.get("observer"), str):
+            errors.append(f"observations[{index}].observer must be a string")
         if not isinstance(observation.get("result"), str):
             errors.append(f"observations[{index}].result must be a string")
         if observation.get("target_exec") not in exec_ids:
@@ -106,11 +148,22 @@ def validate_design_ir(data: dict[str, Any]) -> list[str]:
         if not isinstance(control, dict):
             errors.append(f"controls[{index}] must be an object")
             continue
+        if not isinstance(control.get("id"), str):
+            errors.append(f"controls[{index}].id must be a string")
         if control.get("result") not in result_ids:
             errors.append(f"controls[{index}].result must reference an observation result")
+        timing = control.get("timing")
+        if timing not in ALLOWED_TIMINGS:
+            errors.append(
+                f"controls[{index}].timing must be one of {', '.join(sorted(ALLOWED_TIMINGS))}"
+            )
         target = control.get("target_exec")
         if target is not None and target not in exec_ids:
             errors.append(f"controls[{index}].target_exec must reference an execution when present")
+        if target is None and not isinstance(control.get("consumer"), str):
+            errors.append(f"controls[{index}] requires target_exec or consumer")
+        if timing == "external_controller" and not isinstance(control.get("consumer"), str):
+            errors.append(f"controls[{index}].consumer must name the external controller")
     return errors
 
 
@@ -132,6 +185,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
     graph: list[str] = []
     uncertain_edges = list(data.get("uncertain", []))
     feedback: list[dict[str, Any]] = []
+    proof_obligations: list[dict[str, Any]] = []
     roles = {
         "Code": sorted({safe_label(execution.get("program"), "Exec") for execution in data["executions"]}),
         "Exec": [
@@ -150,18 +204,31 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
         observation = observations[control["result"]]
         observed = executions[observation["target_exec"]]
         target_exec = control.get("target_exec")
+        timing = control.get("timing", "unknown")
         if target_exec is None:
-            uncertain_edges.append(
-                {
-                    "edge": f"{result_node(observed)} -> ?",
-                    "confidence": 0.5,
-                    "reason": "Control target is not specified.",
-                }
-            )
+            consumer = control.get("consumer")
+            if timing == "external_controller" and isinstance(consumer, str):
+                graph.append(f"{result_node(observed)} -> External({safe_label(consumer, 'Controller')})")
+            else:
+                uncertain_edges.append(
+                    {
+                        "edge": f"{result_node(observed)} -> ?",
+                        "confidence": 0.5,
+                        "reason": "Control target is not specified.",
+                    }
+                )
             continue
         controlled = executions[target_exec]
         graph.append(f"{result_node(observed)} -> {exec_node(controlled)}")
-        if target_exec == observation["target_exec"]:
+        if timing == "unknown":
+            uncertain_edges.append(
+                {
+                    "edge": f"{result_node(observed)} -> {exec_node(controlled)}",
+                    "confidence": 0.5,
+                    "reason": "Control timing is unknown.",
+                }
+            )
+        if target_exec == observation["target_exec"] and timing == "during_observed_execution":
             feedback.append(
                 {
                     "result": control["result"],
@@ -169,6 +236,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
                     "action": control.get("action", control.get("purpose", "control")),
                 }
             )
+            proof_obligations.append(default_proof_obligation(control["result"], observation["target_exec"]))
 
     if feedback:
         return {
@@ -178,6 +246,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
             "roles": roles,
             "uncertain_edges": uncertain_edges,
             "repair": repair_for_self_feedback(),
+            "proof_obligations": proof_obligations,
             "explanation": "A prediction or observation result controls the same execution it observes.",
         }
 
@@ -189,6 +258,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
             "roles": roles,
             "uncertain_edges": uncertain_edges,
             "repair": ["Specify the consumer execution or external boundary for each observation result."],
+            "proof_obligations": [],
             "explanation": "The DesignIR leaves at least one result consumer unspecified.",
         }
 
@@ -199,6 +269,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
         "roles": roles,
         "uncertain_edges": [],
         "repair": [],
+        "proof_obligations": [],
         "explanation": "No DesignIR control edge routes an observation result back into its observed execution.",
     }
 
@@ -217,6 +288,7 @@ def analyze_design(text: str) -> dict[str, Any]:
         "roles": base_roles(),
         "uncertain_edges": [],
         "repair": [],
+        "proof_obligations": [],
         "explanation": "Input JSON is not a DesignIR object with executions, observations, and controls.",
     }
 
@@ -249,6 +321,8 @@ def validate_shape(result: dict[str, Any]) -> list[str]:
         errors.append("uncertain_edges must be a list")
     if not isinstance(result.get("repair"), list):
         errors.append("repair must be a list")
+    if "proof_obligations" in result and not isinstance(result.get("proof_obligations"), list):
+        errors.append("proof_obligations must be a list when present")
     if not isinstance(result.get("explanation"), str):
         errors.append("explanation must be a string")
     return errors
@@ -272,10 +346,17 @@ def format_human(result: dict[str, Any]) -> str:
     if result.get("uncertain_edges"):
         lines.append("uncertain_edges:")
         for edge in result["uncertain_edges"]:
-            lines.append(f"  {edge['edge']} | confidence={edge['confidence']} | {edge['reason']}")
+            label = edge.get("edge") or edge.get("field") or "unknown"
+            confidence = edge.get("confidence", "unknown")
+            reason = edge.get("reason", "unspecified")
+            lines.append(f"  {label} | confidence={confidence} | {reason}")
     if result.get("repair"):
         lines.append("repair:")
         lines.extend(f"  - {item}" for item in result["repair"])
+    if result.get("proof_obligations"):
+        lines.append("proof_obligations:")
+        for obligation in result["proof_obligations"]:
+            lines.append(f"  - {obligation['obligation']} for {obligation['result_id']}")
     return "\n".join(lines)
 
 

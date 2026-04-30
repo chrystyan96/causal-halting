@@ -1,3 +1,8 @@
+---
+layout: page
+title: Evaluation
+---
+
 # Evaluation
 
 The plugin should improve answers where prediction feedback matters and stay quiet where it does not.
@@ -23,6 +28,38 @@ token_overhead        guarded token count minus baseline token count
 ```
 
 These are operational metrics. They do not prove the formal theory. They measure whether the plugin improves answer shape.
+
+## DesignIR Corpus Evaluation
+
+The repository also includes deterministic corpus checks:
+
+```powershell
+python scripts/chc_eval_design_ir.py examples/design-ir-corpus
+```
+
+The corpus is deliberately split:
+
+```text
+description.md              natural-language prompt for humans and LLM extraction tests
+expected.design-ir.json      structured interpretation
+expected.analysis.json       expected deterministic classification
+```
+
+The evaluator does not parse `description.md`. It validates the expected
+`DesignIR` artifacts and verifies that the deterministic analyzer returns the
+expected classification. This keeps the rule intact:
+
+```text
+natural language -> LLM writes DesignIR
+DesignIR -> scripts verify structure
+```
+
+Response-quality evaluation and corpus evaluation answer different questions:
+
+```text
+response eval: did the assistant use the CHC lens well?
+corpus eval: does explicit DesignIR classify correctly?
+```
 
 ## Current Sample Result
 

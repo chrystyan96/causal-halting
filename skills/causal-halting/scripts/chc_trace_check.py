@@ -178,6 +178,12 @@ def analyze_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         before_end = is_before_exec_end(consumption.index, observed)
         audit_only = is_audit_only(consumption.purpose)
         relation = "same_execution" if same_execution else "different_execution"
+        if (
+            not same_execution
+            and observed.end_index is not None
+            and consumer_exec.start_index > observed.end_index
+        ):
+            relation = "future_execution"
         if same_execution and not before_end:
             relation = "same_execution_after_end"
         if audit_only:

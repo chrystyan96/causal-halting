@@ -1,6 +1,6 @@
 ---
-description: Manage Causal Halting mode, checker, design/trace analysis, workflow adapters, and repair verification
-argument-hint: [on|off|status|explain|check|analyze-design|analyze-trace|repair|adapt-workflow|verify-repair] [args]
+description: Manage Causal Halting mode, checker, DesignIR/trace analysis, adapters, corpus evaluation, repair verification, and reports
+argument-hint: [on|off|status|explain|check|analyze-design|analyze-trace|repair|adapt-workflow|adapt-otel|adapt-langgraph|eval-design-ir|verify-repair|report] [args]
 allowed-tools: Bash(python:*)
 ---
 
@@ -18,7 +18,11 @@ analyze-design <design-ir-json-file>
 analyze-trace <jsonl-file>
 repair <analysis-json>
 adapt-workflow <workflow-json>
-verify-repair <trace-before> <trace-after>
+adapt-otel <otel-json>
+adapt-langgraph <langgraph-json>
+eval-design-ir <corpus-dir>
+verify-repair <trace-before> <trace-after> [repair-json]
+report <analysis-or-repair-json>
 ```
 
 If no argument is provided, use `status`.
@@ -30,6 +34,7 @@ The script does not understand prose.
 For natural-language design requests, first interpret the design semantically into DesignIR.
 Then run analyze-design on the DesignIR JSON.
 Never classify prose directly and never use keyword presence as evidence.
+The DesignIR must be explicit and auditable: include design_ir_version, executions, observations, controls, uncertain, and semantic_evidence.
 ```
 
 Run the mode command only after any required DesignIR extraction is complete:
@@ -47,4 +52,7 @@ After the command output is available:
 - For `analyze-trace`, report the deterministic trace classification and exact feedback path when present.
 - For `repair`, report the before/after causal boundary and proof obligations.
 - For `adapt-workflow`, report the generated JSONL events and say they still need trace analysis.
-- For `verify-repair`, report whether verification passed, with before/after classifications.
+- For `adapt-otel` or `adapt-langgraph`, report the generated JSONL events and say they still need trace analysis.
+- For `eval-design-ir`, report pass/fail counts and any failed corpus cases.
+- For `verify-repair`, report whether verification passed, with before/after classifications and proof-obligation statuses.
+- For `report`, return the Markdown/Mermaid report.

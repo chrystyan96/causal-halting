@@ -1,7 +1,7 @@
 {
   "name": "causal-halting",
-  "version": "1.6.0",
-  "description": "A Codex skill, prompt guard, DesignIR verifier, trace analyzer, workflow adapter, and repair verifier for prediction-feedback loops.",
+  "version": "1.8.0",
+  "description": "A Codex skill, prompt guard, DesignIR verifier, trace analyzer, real adapters, corpus evaluator, repair verifier, and Markdown reporter for prediction-feedback loops.",
   "author": {
     "name": "Chrystyan Byrnes",
     "url": "https://github.com/chrystyan96/causal-halting"
@@ -23,7 +23,7 @@
   "interface": {
     "displayName": "Causal Halting",
     "shortDescription": "Analyze and refactor prediction-feedback loops in agent systems.",
-    "longDescription": "Causal Halting packages a Codex skill, low-cost UserPromptSubmit context guard, CHC-0 reference notes, explicit graph checker, DesignIR-only verifier, deterministic trace analyzer, workflow adapter, repair workflow, and before/after repair verifier for separating structural prediction-feedback cycles from ordinary semantic undecidability. Natural language must be interpreted by the LLM into DesignIR before deterministic analysis.",
+    "longDescription": "Causal Halting packages a Codex skill, low-cost UserPromptSubmit context guard, CHC-0 reference notes, explicit graph checker, DesignIR-only verifier, deterministic trace analyzer, generic workflow/OpenTelemetry/LangGraph adapters, DesignIR corpus evaluator, repair workflow, proof-obligation repair verifier, and Markdown/Mermaid reporter for separating structural prediction-feedback cycles from ordinary semantic undecidability. Natural language must be interpreted by the LLM into DesignIR before deterministic analysis.",
     "developerName": "Chrystyan Byrnes",
     "category": "Developer Tools",
     "capabilities": [
@@ -40,6 +40,9 @@
       "Analyze this agent trace for current-run prediction feedback.",
       "Repair this causal_paradox into a safe orchestrator boundary.",
       "Verify this before/after trace repair.",
+      "Convert annotated OpenTelemetry or LangGraph traces into CHC events.",
+      "Evaluate the DesignIR extraction corpus without parsing prose.",
+      "Render a CHC analysis as a Markdown/Mermaid report.",
       "Separate causal_paradox from unproved."
     ],
     "brandColor": "#2563EB"

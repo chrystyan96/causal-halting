@@ -139,12 +139,15 @@ causal-halting/
         diagonal.graph
         future-run.trace.jsonl
         generic-workflow.json
+        langgraph-future-run.json
+        otel-self-prediction.json
         post-end-audit.trace.jsonl
         qe-valid-acyclic.chc
         safe-supervisor.graph
         self-prediction.analysis.json
         self-prediction.design-ir.json
         self-prediction.trace.jsonl
+        design-ir-corpus/
       references/
         causal-halting-calculus.md
         design-ir-extraction.md
@@ -153,30 +156,41 @@ causal-halting/
         chc_design_analyze.py
         chc_design_schema.py
         chc_repair.py
+        chc_report.py
+        chc_eval_design_ir.py
         chc_trace_check.py
         chc_verify_repair.py
         chc_workflow_adapter.py
+        chc_otel_adapter.py
+        chc_langgraph_adapter.py
   scripts/
     chc_check.py
     chc_design_analyze.py
     chc_design_schema.py
     chc_repair.py
+    chc_report.py
+    chc_eval_design_ir.py
     chc_session_guard.py
     chc_trace_check.py
     chc_verify_repair.py
     chc_workflow_adapter.py
+    chc_otel_adapter.py
+    chc_langgraph_adapter.py
     evaluate_responses.py
   examples/
     diagonal.chc
     diagonal.graph
     future-run.trace.jsonl
     generic-workflow.json
+    langgraph-future-run.json
+    otel-self-prediction.json
     post-end-audit.trace.jsonl
     qe-valid-acyclic.chc
     safe-supervisor.graph
     self-prediction.analysis.json
     self-prediction.design-ir.json
     self-prediction.trace.jsonl
+    design-ir-corpus/
   tests/
     test_chc_check.py
     test_chc_design_trace_repair.py
@@ -231,7 +245,11 @@ python scripts/chc_design_analyze.py examples/self-prediction.design-ir.json
 python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
 python scripts/chc_repair.py examples/self-prediction.analysis.json
 python scripts/chc_workflow_adapter.py examples/generic-workflow.json
+python scripts/chc_otel_adapter.py examples/otel-self-prediction.json
+python scripts/chc_langgraph_adapter.py examples/langgraph-future-run.json
 python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
+python scripts/chc_report.py examples/self-prediction.analysis.json
+python scripts/chc_eval_design_ir.py examples/design-ir-corpus
 ```
 
 The portable skill package also includes the checker:
@@ -244,7 +262,11 @@ python scripts\chc_design_analyze.py examples\self-prediction.design-ir.json
 python scripts\chc_trace_check.py examples\self-prediction.trace.jsonl
 python scripts\chc_repair.py examples\self-prediction.analysis.json
 python scripts\chc_workflow_adapter.py examples\generic-workflow.json
+python scripts\chc_otel_adapter.py examples\otel-self-prediction.json
+python scripts\chc_langgraph_adapter.py examples\langgraph-future-run.json
 python scripts\chc_verify_repair.py examples\self-prediction.trace.jsonl examples\future-run.trace.jsonl
+python scripts\chc_report.py examples\self-prediction.analysis.json
+python scripts\chc_eval_design_ir.py examples\design-ir-corpus
 ```
 
 ## Checker Input Formats
@@ -451,14 +473,18 @@ The run asks whether this same run halts and then uses the answer to control its
 
 ## From Hygiene To Verification
 
-Version 1.5 extends the project beyond a prompt-level warning label. It adds explicit analysis workflows:
+Version 1.7 extends the project beyond a prompt-level warning label. It adds an explicit causal verification pipeline:
 
 ```text
-/causal-halting analyze-design <text-or-file>
+/causal-halting analyze-design <design-ir-json-file>
 /causal-halting analyze-trace <jsonl-file>
 /causal-halting repair <analysis-json>
 /causal-halting adapt-workflow <workflow-json>
-/causal-halting verify-repair <trace-before> <trace-after>
+/causal-halting adapt-otel <otel-json>
+/causal-halting adapt-langgraph <langgraph-json>
+/causal-halting eval-design-ir <corpus-dir>
+/causal-halting verify-repair <trace-before> <trace-after> [repair-json]
+/causal-halting report <analysis-or-repair-json>
 ```
 
 The intent is to move from:
@@ -470,7 +496,7 @@ The intent is to move from:
 to:
 
 ```text
-extract DesignIR -> classify deterministically -> verify trace -> propose repair -> verify before/after
+LLM extracts DesignIR -> deterministic classification -> trace verification -> repair obligations -> before/after proof check -> Markdown/Mermaid report
 ```
 
 ### Design Analysis
@@ -512,6 +538,7 @@ Minimal `DesignIR`:
 
 ```json
 {
+  "design_ir_version": "1.0",
   "executions": [
     {"id": "run-1", "program": "AgentRun", "input": "task"}
   ],
@@ -519,11 +546,32 @@ Minimal `DesignIR`:
     {"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}
   ],
   "controls": [
-    {"result": "r-1", "target_exec": "run-1", "action": "change_strategy"}
+    {
+      "id": "ctrl-1",
+      "result": "r-1",
+      "target_exec": "run-1",
+      "timing": "during_observed_execution",
+      "action": "change_strategy"
+    }
+  ],
+  "semantic_evidence": [
+    {"source": "user description", "claim": "The supervisor result changes the same active run."}
   ],
   "uncertain": []
 }
 ```
+
+Allowed `timing` values:
+
+```text
+during_observed_execution
+after_observed_execution
+future_execution
+external_controller
+unknown
+```
+
+`semantic_evidence` makes the LLM extraction auditable. It is not the proof. The script still determines the classification from structured causal roles.
 
 ### No Lexical Analysis
 
@@ -576,6 +624,37 @@ executions + observations + controls
 
 into trace events that can be passed to `chc_trace_check.py`.
 
+### OpenTelemetry And LangGraph Adapters
+
+Use `adapt-otel` when production traces already carry explicit `chc.*` attributes:
+
+```powershell
+python scripts/chc_otel_adapter.py examples/otel-self-prediction.json
+```
+
+Supported OpenTelemetry attributes:
+
+```text
+chc.event.type        exec_start | exec_end | observe | consume
+chc.exec.id
+chc.program
+chc.input
+chc.target_exec.id
+chc.result.id
+chc.consumer_exec.id
+chc.consumer
+chc.purpose
+chc.status
+```
+
+Use `adapt-langgraph` for structured LangGraph-style run JSON:
+
+```powershell
+python scripts/chc_langgraph_adapter.py examples/langgraph-future-run.json
+```
+
+Both adapters are deterministic. They do not infer causal meaning from span names, node names, edge labels, or prose.
+
 ### Repair Reports
 
 Use `repair` after a design or trace analysis reports `causal_paradox`:
@@ -616,7 +695,35 @@ after_classification: valid_acyclic
 verification: passed
 ```
 
-This makes the repair testable: the after trace must no longer contain same-execution pre-end consumption of its own prediction result.
+This makes the repair testable: the after trace must no longer contain same-execution pre-end consumption of its own prediction result. If a repair JSON is provided, `verify-repair` also checks each listed proof obligation.
+
+### Markdown And Mermaid Reports
+
+Use `report` to render an analysis, repair, or verification JSON for PRs and architecture review:
+
+```powershell
+python scripts/chc_report.py examples/self-prediction.analysis.json
+```
+
+The report includes the classification, explanation, causal graph, repair graph when available, and proof obligations.
+
+### DesignIR Corpus Evaluation
+
+Use `eval-design-ir` to validate extraction fixtures without parsing prose:
+
+```powershell
+python scripts/chc_eval_design_ir.py examples/design-ir-corpus
+```
+
+Each corpus case separates:
+
+```text
+description.md           natural-language prompt for humans and LLM extraction tests
+expected.design-ir.json  explicit structured interpretation
+expected.analysis.json   expected deterministic classification
+```
+
+The evaluator checks only the JSON artifacts. It does not classify natural language.
 
 ## Using The Codex Skill
 
@@ -693,10 +800,10 @@ To check an explicit `.graph` or `.chc` file:
 /causal-halting check examples/diagonal.graph
 ```
 
-To infer a causal model from a design:
+To analyze an explicit DesignIR file:
 
 ```text
-/causal-halting analyze-design examples/design.txt
+/causal-halting analyze-design examples/self-prediction.design-ir.json
 ```
 
 To verify an event trace:
@@ -717,10 +824,34 @@ To convert generic workflow JSON into trace events:
 /causal-halting adapt-workflow examples/generic-workflow.json
 ```
 
+To convert explicitly annotated OpenTelemetry JSON:
+
+```text
+/causal-halting adapt-otel examples/otel-self-prediction.json
+```
+
+To convert structured LangGraph-style JSON:
+
+```text
+/causal-halting adapt-langgraph examples/langgraph-future-run.json
+```
+
+To evaluate the DesignIR corpus:
+
+```text
+/causal-halting eval-design-ir examples/design-ir-corpus
+```
+
 To verify that a repair removed the causal paradox:
 
 ```text
-/causal-halting verify-repair examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
+/causal-halting verify-repair examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl examples/self-prediction.analysis.json
+```
+
+To render Markdown/Mermaid for review:
+
+```text
+/causal-halting report examples/self-prediction.analysis.json
 ```
 
 The same state can also be changed through explicit text commands, which are handled by the hook when a slash command is unavailable:
@@ -1020,7 +1151,11 @@ python scripts\chc_design_analyze.py examples\self-prediction.design-ir.json
 python scripts\chc_trace_check.py examples\self-prediction.trace.jsonl
 python scripts\chc_repair.py examples\self-prediction.analysis.json
 python scripts\chc_workflow_adapter.py examples\generic-workflow.json
-python scripts\chc_verify_repair.py examples\self-prediction.trace.jsonl examples\future-run.trace.jsonl
+python scripts\chc_otel_adapter.py examples\otel-self-prediction.json
+python scripts\chc_langgraph_adapter.py examples\langgraph-future-run.json
+python scripts\chc_verify_repair.py examples\self-prediction.trace.jsonl examples\future-run.trace.jsonl --repair examples\self-prediction.analysis.json
+python scripts\chc_report.py examples\self-prediction.analysis.json
+python scripts\chc_eval_design_ir.py examples\design-ir-corpus
 ```
 
 Expected:
@@ -1057,10 +1192,11 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 - The checker analyzes explicit CHC-0 artifacts only: graph DSL and mini-CHC syntax.
 - The checker detects CHC-0 causal graph failures only; it does not prove arbitrary termination or divergence.
 - The checker does not perform semantic halting analysis.
-- The design analyzer is conservative; natural-language input is first converted to inferred `DesignIR`, and only the `DesignIR` classification is deterministic.
+- The design analyzer is conservative; natural-language input must be converted to explicit `DesignIR` by the LLM, and only the `DesignIR` classification is deterministic.
 - The trace analyzer is deterministic, but only for traces that follow the documented event schema.
-- The workflow adapter supports a small generic JSON schema first; framework-specific adapters remain future work.
+- The workflow, OpenTelemetry, and LangGraph adapters require explicit causal fields; they do not infer meaning from prose, span names, or node names.
 - The repair engine proposes architecture boundaries and proof obligations; it does not patch arbitrary application code.
+- The repair verifier checks trace-level obligations only when the before/after traces expose the relevant result and execution IDs.
 - The evaluation harness scores response shape with transparent text checks; it is not a model-graded benchmark.
 - The mini-CHC parser supports only v1 canonical syntax.
 - Session mode through `/causal-halting` depends on the host plugin runtime exposing or propagating prompt/session context as expected.
@@ -1074,9 +1210,9 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 
 - CHC-1: recursive CHC definitions with fixed-point causal effect summaries.
 - CHC-2: controlled higher-order code with effect-polymorphic causal types.
-- Framework adapters for generic JSON/YAML workflow specs, LangGraph-style flows, Temporal/Airflow-style orchestrators, and Codex-style session traces when available.
-- OpenTelemetry bridge for mapping distributed traces into CHC events.
-- Graph visualization for inferred and trace-derived E/R graphs.
+- Temporal/Airflow-style orchestrator adapters and Codex-style session traces when available.
+- Richer OpenTelemetry mappings for production span conventions beyond explicit `chc.*` attributes.
+- Interactive graph visualization for inferred and trace-derived E/R graphs.
 - Replace illustrative evaluation fixtures with live model comparison runs across several models.
 - Benchmark corpus with 50-100 agent-loop prompts/designs and expected classifications.
 - False-positive audit for normal monitoring, retries, and planning.
