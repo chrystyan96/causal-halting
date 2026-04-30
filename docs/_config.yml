@@ -5,7 +5,10 @@ theme: minima
 header_pages:
   - index.md
   - chc-0.md
+  - chc-1-2.md
   - case-studies.md
+  - interfaces.md
+  - formal-roadmap.md
   - evaluation.md
   - otel-instrumentation.md
   - publication.md

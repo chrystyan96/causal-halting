@@ -6,6 +6,8 @@
           "spans": [
             {
               "name": "agent-run-start",
+              "spanId": "span-run-start",
+              "startTimeUnixNano": "1000",
               "attributes": [
                 {"key": "chc.event.type", "value": {"stringValue": "exec_start"}},
                 {"key": "chc.exec.id", "value": {"stringValue": "run-1"}},
@@ -15,6 +17,9 @@
             },
             {
               "name": "supervisor-observe",
+              "spanId": "span-observe",
+              "parentSpanId": "span-run-start",
+              "startTimeUnixNano": "2000",
               "attributes": [
                 {"key": "chc.event.type", "value": {"stringValue": "observe"}},
                 {"key": "chc.observer", "value": {"stringValue": "Supervisor"}},
@@ -24,6 +29,9 @@
             },
             {
               "name": "agent-consume",
+              "spanId": "span-consume",
+              "parentSpanId": "span-observe",
+              "startTimeUnixNano": "3000",
               "attributes": [
                 {"key": "chc.event.type", "value": {"stringValue": "consume"}},
                 {"key": "chc.result.id", "value": {"stringValue": "r-1"}},

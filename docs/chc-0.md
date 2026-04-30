@@ -143,6 +143,9 @@ python scripts/chc_check.py examples/diagonal.graph
 python scripts/chc_check.py examples/qe-valid-acyclic.chc
 ```
 
+In v2.0, the same checker also supports CHC-1 recursive effect summaries and
+CHC-2 higher-order effect annotations. See [CHC-1 and CHC-2](./chc-1-2.md).
+
 The portable skill package also includes the checker:
 
 ```powershell
@@ -174,6 +177,7 @@ For runtime evidence, traces use four event types:
 exec_start
 observe
 consume
+control_exec
 exec_end
 ```
 
@@ -185,14 +189,16 @@ observe(run-1) -> result r-1 -> consume by run-1 before exec_end(run-1)
 
 is a `causal_paradox`.
 
-OpenTelemetry and LangGraph adapters are available, but they only consume
-explicit causal fields. They do not infer meaning from span names, node names,
-or prose.
+OpenTelemetry, LangGraph, and Temporal/Airflow adapters are available, but
+they only consume explicit causal fields. They do not infer meaning from span
+names, node names, DAG labels, or prose. Adapter output preserves source IDs
+and optional metadata such as `event_source`, `timestamp`, `span_id`,
+`parent_id`, and `confidence`.
 
 Repairs emit proof obligations. The core obligation is:
 
 ```text
-prediction_result_not_consumed_by_observed_execution
+result_not_consumed_by_observed_execution_before_end
 ```
 
 In plain language: a result produced by observing a run must not be consumed by

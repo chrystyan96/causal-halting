@@ -26,6 +26,7 @@ chc_workflow_adapter = load_script("chc_workflow_adapter")
 chc_verify_repair = load_script("chc_verify_repair")
 chc_otel_adapter = load_script("chc_otel_adapter")
 chc_langgraph_adapter = load_script("chc_langgraph_adapter")
+chc_temporal_airflow_adapter = load_script("chc_temporal_airflow_adapter")
 chc_report = load_script("chc_report")
 chc_eval_design_ir = load_script("chc_eval_design_ir")
 
@@ -220,6 +221,36 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
         self.assertEqual(result["classification"], "valid_acyclic")
         self.assertEqual(result["valid_paths"][0]["relation"], "external_controller")
 
+    def test_trace_indirect_controller_feedback_is_causal_paradox(self):
+        trace = "\n".join(
+            [
+                json.dumps({"type": "exec_start", "exec_id": "run-1", "program": "AgentRun", "input": "task-a"}),
+                json.dumps({"type": "exec_start", "exec_id": "controller-1", "program": "SupervisorController", "input": "run-1"}),
+                json.dumps({"type": "observe", "observer": "Supervisor", "target_exec_id": "run-1", "result_id": "r-1"}),
+                json.dumps({"type": "consume", "result_id": "r-1", "consumer_exec_id": "controller-1", "purpose": "decide_intervention"}),
+                json.dumps({"type": "control_exec", "controller_exec_id": "controller-1", "controlled_exec_id": "run-1", "action": "change_strategy"}),
+            ]
+        )
+
+        result = chc_trace_check.analyze_text(trace)
+
+        self.assertEqual(result["classification"], "causal_paradox")
+        self.assertEqual(result["feedback_paths"][0]["relation"], "indirect_same_execution_control")
+
+    def test_trace_unknown_consumer_is_insufficient_info(self):
+        trace = "\n".join(
+            [
+                json.dumps({"type": "exec_start", "exec_id": "run-1", "program": "AgentRun", "input": "task-a"}),
+                json.dumps({"type": "observe", "observer": "Supervisor", "target_exec_id": "run-1", "result_id": "r-1"}),
+                json.dumps({"type": "consume", "result_id": "r-1", "consumer_exec_id": "missing-run", "purpose": "strategy_change"}),
+            ]
+        )
+
+        result = chc_trace_check.analyze_text(trace)
+
+        self.assertEqual(result["classification"], "insufficient_info")
+        self.assertEqual(result["uncertain_paths"][0]["relation"], "unknown_consumer_execution")
+
     def test_trace_same_exec_after_end_audit_is_valid_acyclic(self):
         trace = "\n".join(
             [
@@ -316,6 +347,8 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
         result = chc_trace_check.analyze_events(events)
 
         self.assertEqual(result["classification"], "causal_paradox")
+        self.assertEqual(events[0]["span_id"], "span-run-start")
+        self.assertEqual(events[1]["parent_id"], "span-run-start")
 
     def test_langgraph_adapter_outputs_trace_events(self):
         payload = json.loads((ROOT / "examples" / "langgraph-future-run.json").read_text(encoding="utf-8"))
@@ -324,6 +357,16 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
         result = chc_trace_check.analyze_events(events)
 
         self.assertEqual(result["classification"], "valid_acyclic")
+
+    def test_temporal_airflow_adapter_outputs_indirect_feedback_trace(self):
+        payload = json.loads((ROOT / "examples" / "temporal-airflow-indirect-feedback.json").read_text(encoding="utf-8"))
+
+        events = chc_temporal_airflow_adapter.temporal_airflow_to_events(payload)
+        result = chc_trace_check.analyze_events(events)
+
+        self.assertEqual(result["classification"], "causal_paradox")
+        self.assertEqual(result["feedback_paths"][0]["relation"], "indirect_same_execution_control")
+        self.assertEqual(events[0]["event_source"], "temporal_airflow.execution")
 
     def test_verify_repair_fails_specific_obligation_when_wrong_boundary_used(self):
         before = "\n".join(
@@ -347,6 +390,54 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
         self.assertEqual(result["verification"], "failed")
         self.assertEqual(result["proof_obligations"][0]["status"], "failed")
 
+    def test_verify_repair_accepts_new_obligation_names(self):
+        before = "\n".join(
+            [
+                json.dumps({"type": "exec_start", "exec_id": "run-1", "program": "AgentRun", "input": "task-a"}),
+                json.dumps({"type": "observe", "observer": "Supervisor", "target_exec_id": "run-1", "result_id": "r-1"}),
+                json.dumps({"type": "consume", "result_id": "r-1", "consumer_exec_id": "run-1", "purpose": "strategy_change"}),
+            ]
+        )
+        after = "\n".join(
+            [
+                json.dumps({"type": "exec_start", "exec_id": "run-1", "program": "AgentRun", "input": "task-a"}),
+                json.dumps({"type": "observe", "observer": "Supervisor", "target_exec_id": "run-1", "result_id": "r-1"}),
+                json.dumps({"type": "consume", "result_id": "r-1", "consumer": "Orchestrator", "purpose": "stop_or_retry"}),
+            ]
+        )
+        obligations = [
+            {"obligation": "result_not_consumed_by_observed_execution_before_end", "result_id": "r-1", "forbidden_consumer_exec_id": "run-1"},
+            {"obligation": "external_controller_consumes_result", "result_id": "r-1"},
+        ]
+
+        result = chc_verify_repair.verify_repair(before, after, obligations)
+
+        self.assertEqual(result["verification"], "passed")
+
+    def test_verify_repair_fails_when_indirect_feedback_remains(self):
+        before = "\n".join(
+            [
+                json.dumps({"type": "exec_start", "exec_id": "run-1", "program": "AgentRun", "input": "task-a"}),
+                json.dumps({"type": "exec_start", "exec_id": "controller-1", "program": "Controller", "input": "run-1"}),
+                json.dumps({"type": "observe", "observer": "Supervisor", "target_exec_id": "run-1", "result_id": "r-1"}),
+                json.dumps({"type": "consume", "result_id": "r-1", "consumer_exec_id": "controller-1", "purpose": "decide"}),
+                json.dumps({"type": "control_exec", "controller_exec_id": "controller-1", "controlled_exec_id": "run-1", "action": "change_strategy"}),
+            ]
+        )
+        after = before
+        obligations = [
+            {
+                "obligation": "result_not_consumed_by_observed_execution_before_end",
+                "result_id": "r-1",
+                "forbidden_consumer_exec_id": "run-1",
+            }
+        ]
+
+        result = chc_verify_repair.verify_repair(before, after, obligations)
+
+        self.assertEqual(result["verification"], "failed")
+        self.assertEqual(result["proof_obligations"][0]["status"], "failed")
+
     def test_report_renders_mermaid_graph(self):
         report = chc_report.render_markdown(
             {
@@ -358,6 +449,7 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
 
         self.assertIn("```mermaid", report)
         self.assertIn("flowchart LR", report)
+        self.assertIn("CHC does not solve classical halting", report)
 
     def test_eval_design_ir_corpus_passes(self):
         result = chc_eval_design_ir.evaluate_corpus(ROOT / "examples" / "design-ir-corpus")

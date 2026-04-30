@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Convert structured LangGraph-style run JSON into CHC trace events.
+"""Convert structured Temporal/Airflow-style JSON into CHC trace events.
 
-This adapter expects explicit causal fields. It does not infer meaning from
-node names, edge labels, or prose descriptions.
+This adapter reads explicit causal fields only. It does not infer meaning from
+workflow names, task names, DAG labels, or prose descriptions.
 """
 
 from __future__ import annotations
@@ -22,48 +22,71 @@ def metadata_from(source: dict[str, Any], event_source: str) -> dict[str, Any]:
     return metadata
 
 
-def langgraph_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def execution_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    items = payload.get("runs", payload.get("tasks", payload.get("executions", [])))
+    return items if isinstance(items, list) else []
+
+
+def execution_id(item: dict[str, Any]) -> Any:
+    return item.get("id", item.get("run_id", item.get("task_id")))
+
+
+def execution_program(item: dict[str, Any]) -> Any:
+    return item.get("workflow", item.get("dag_id", item.get("task", item.get("program", "WorkflowRun"))))
+
+
+def temporal_airflow_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
-    for run in payload.get("runs", payload.get("executions", [])):
+    for item in execution_items(payload):
+        exec_id = execution_id(item)
         events.append(
             {
                 "type": "exec_start",
-                "exec_id": run["id"],
-                "program": run.get("node", run.get("program", "Node")),
-                "input": run.get("input", "input"),
-                **metadata_from(run, "langgraph.run"),
+                "exec_id": exec_id,
+                "program": execution_program(item),
+                "input": item.get("input", payload.get("workflow_id", payload.get("dag_id", "input"))),
+                **metadata_from(item, "temporal_airflow.execution"),
             }
         )
-        if run.get("ended"):
-            events.append({"type": "exec_end", "exec_id": run["id"], "status": run.get("status", "halted"), **metadata_from(run, "langgraph.run")})
+        if item.get("ended"):
+            events.append(
+                {
+                    "type": "exec_end",
+                    "exec_id": exec_id,
+                    "status": item.get("status", "halted"),
+                    **metadata_from(item, "temporal_airflow.execution"),
+                }
+            )
+
     for observation in payload.get("observations", []):
         events.append(
             {
                 "type": "observe",
-                "observer": observation.get("observer_node", observation.get("observer", "Observer")),
+                "observer": observation.get("observer", "Observer"),
                 "target_exec_id": observation["target_run"],
                 "result_id": observation["result"],
-                **metadata_from(observation, "langgraph.observation"),
+                **metadata_from(observation, "temporal_airflow.observation"),
             }
         )
+
     for control in payload.get("controls", []):
         if "controlled_run" in control or "controller_run" in control:
             event = {
                 "type": "control_exec",
                 "controlled_exec_id": control.get("controlled_run"),
                 "controller_exec_id": control.get("controller_run"),
-                "controller": control.get("controller_node", control.get("controller")),
+                "controller": control.get("controller"),
                 "action": control.get("action", "control"),
-                **metadata_from(control, "langgraph.control_exec"),
+                **metadata_from(control, "temporal_airflow.control_exec"),
             }
         else:
             event = {
                 "type": "consume",
                 "result_id": control["result"],
                 "consumer_exec_id": control.get("target_run"),
-                "consumer": control.get("consumer_node", control.get("consumer")),
+                "consumer": control.get("consumer"),
                 "purpose": control.get("purpose", control.get("action", "control")),
-                **metadata_from(control, "langgraph.control"),
+                **metadata_from(control, "temporal_airflow.control"),
             }
         events.append({key: value for key, value in event.items() if value is not None})
     return events
@@ -71,28 +94,29 @@ def langgraph_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 def validate_payload(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    runs = payload.get("runs", payload.get("executions"))
+    executions = execution_items(payload)
     observations = payload.get("observations")
     controls = payload.get("controls")
-    if not isinstance(runs, list):
-        errors.append("runs or executions must be a list")
     if not isinstance(observations, list):
         errors.append("observations must be a list")
     if not isinstance(controls, list):
         errors.append("controls must be a list")
+    if not executions:
+        errors.append("runs, tasks, or executions must be a non-empty list")
     if errors:
         return errors
-    run_ids = {run.get("id") for run in runs if isinstance(run, dict)}
+
+    exec_ids = {execution_id(item) for item in executions if isinstance(item, dict)}
     result_ids = {observation.get("result") for observation in observations if isinstance(observation, dict)}
-    for index, run in enumerate(runs):
-        if not isinstance(run, dict) or not isinstance(run.get("id"), str):
-            errors.append(f"runs[{index}].id must be a string")
+    for index, item in enumerate(executions):
+        if not isinstance(item, dict) or not isinstance(execution_id(item), str):
+            errors.append(f"executions[{index}] must have string id, run_id, or task_id")
     for index, observation in enumerate(observations):
         if not isinstance(observation, dict):
             errors.append(f"observations[{index}] must be an object")
             continue
-        if observation.get("target_run") not in run_ids:
-            errors.append(f"observations[{index}].target_run must reference a run")
+        if observation.get("target_run") not in exec_ids:
+            errors.append(f"observations[{index}].target_run must reference an execution")
         if not isinstance(observation.get("result"), str):
             errors.append(f"observations[{index}].result must be a string")
     for index, control in enumerate(controls):
@@ -101,15 +125,9 @@ def validate_payload(payload: dict[str, Any]) -> list[str]:
             continue
         if "controlled_run" not in control and "controller_run" not in control and control.get("result") not in result_ids:
             errors.append(f"controls[{index}].result must reference an observation result")
-        target = control.get("target_run")
-        if target is not None and target not in run_ids:
-            errors.append(f"controls[{index}].target_run must reference a run when present")
-        controlled = control.get("controlled_run")
-        if controlled is not None and controlled not in run_ids:
-            errors.append(f"controls[{index}].controlled_run must reference a run when present")
-        controller = control.get("controller_run")
-        if controller is not None and controller not in run_ids:
-            errors.append(f"controls[{index}].controller_run must reference a run when present")
+        for key in ("target_run", "controlled_run", "controller_run"):
+            if key in control and control[key] is not None and control[key] not in exec_ids:
+                errors.append(f"controls[{index}].{key} must reference an execution when present")
     return errors
 
 
@@ -118,8 +136,8 @@ def format_jsonl(events: list[dict[str, Any]]) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Convert structured LangGraph-style JSON to CHC trace JSONL.")
-    parser.add_argument("input", help="LangGraph-style JSON file.")
+    parser = argparse.ArgumentParser(description="Convert Temporal/Airflow-style JSON to CHC trace JSONL.")
+    parser.add_argument("input", help="Temporal/Airflow-style JSON file.")
     parser.add_argument("--format", choices=("jsonl", "json"), default="jsonl")
     return parser
 
@@ -138,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
     if errors:
         print("; ".join(errors), file=sys.stderr)
         return 2
-    events = langgraph_to_events(payload)
+    events = temporal_airflow_to_events(payload)
     if args.format == "json":
         print(json.dumps(events, indent=2, sort_keys=True))
     else:

@@ -1,12 +1,12 @@
 # Causal Halting
 
-A Codex skill, low-cost prompt guard, DesignIR verifier, trace analyzer, and repair workflow for detecting prediction-feedback loops in halting-style reasoning and agent architectures.
+A Codex skill, low-cost prompt guard, operational CHC-0/CHC-1/CHC-2 checker, DesignIR verifier, trace analyzer, and repair workflow for detecting prediction-feedback loops in halting-style reasoning and agent architectures.
 
 `causal-halting` packages four things:
 
-1. a Codex skill for applying Causal Halting Calculus (CHC-0);
-2. a formal reference note for the CHC-0 rules and theorems;
-3. a small Python checker for CHC-0 causal graphs;
+1. a Codex skill for applying Causal Halting Calculus (CHC-0/1/2);
+2. a formal reference note for the CHC-0 rules and theorem boundary;
+3. a Python checker for graph DSL and Mini-CHC v2 programs with recursion summaries and higher-order effects;
 4. a DesignIR verifier and trace analyzer for agent/workflow systems;
 5. a causal repair workflow that proposes safer execution boundaries;
 6. a low-cost background prompt guard that lets the main LLM detect CHC-0 cases from causal structure, not keyword matching.
@@ -61,12 +61,12 @@ It makes a narrower claim:
 
 ```text
 Classical diagonalization relies on unrestricted prediction feedback.
-CHC-0 makes that feedback explicit as a causal graph.
+CHC makes that feedback explicit as a causal graph.
 The diagonal loop becomes a structural type error.
 Ordinary semantic undecidability remains.
 ```
 
-## How CHC-0 Works
+## How CHC Works
 
 CHC-0 separates roles that the classical argument freely collapses:
 
@@ -137,10 +137,13 @@ causal-halting/
       examples/
         diagonal.chc
         diagonal.graph
+        chc1-recursive-feedback.chc
+        chc2-higher-order-safe.chc
         future-run.trace.jsonl
         generic-workflow.json
         langgraph-future-run.json
         otel-self-prediction.json
+        temporal-airflow-indirect-feedback.json
         post-end-audit.trace.jsonl
         qe-valid-acyclic.chc
         safe-supervisor.graph
@@ -150,6 +153,7 @@ causal-halting/
         design-ir-corpus/
       references/
         causal-halting-calculus.md
+        chc-1-2-operational.md
         design-ir-extraction.md
       scripts/
         chc_check.py
@@ -163,6 +167,7 @@ causal-halting/
         chc_workflow_adapter.py
         chc_otel_adapter.py
         chc_langgraph_adapter.py
+        chc_temporal_airflow_adapter.py
   scripts/
     chc_check.py
     chc_design_analyze.py
@@ -176,14 +181,18 @@ causal-halting/
     chc_workflow_adapter.py
     chc_otel_adapter.py
     chc_langgraph_adapter.py
+    chc_temporal_airflow_adapter.py
     evaluate_responses.py
   examples/
     diagonal.chc
     diagonal.graph
+    chc1-recursive-feedback.chc
+    chc2-higher-order-safe.chc
     future-run.trace.jsonl
     generic-workflow.json
     langgraph-future-run.json
     otel-self-prediction.json
+    temporal-airflow-indirect-feedback.json
     post-end-audit.trace.jsonl
     qe-valid-acyclic.chc
     safe-supervisor.graph
@@ -247,6 +256,7 @@ python scripts/chc_repair.py examples/self-prediction.analysis.json
 python scripts/chc_workflow_adapter.py examples/generic-workflow.json
 python scripts/chc_otel_adapter.py examples/otel-self-prediction.json
 python scripts/chc_langgraph_adapter.py examples/langgraph-future-run.json
+python scripts/chc_temporal_airflow_adapter.py examples/temporal-airflow-indirect-feedback.json
 python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
 python scripts/chc_report.py examples/self-prediction.analysis.json
 python scripts/chc_eval_design_ir.py examples/design-ir-corpus
@@ -264,6 +274,7 @@ python scripts\chc_repair.py examples\self-prediction.analysis.json
 python scripts\chc_workflow_adapter.py examples\generic-workflow.json
 python scripts\chc_otel_adapter.py examples\otel-self-prediction.json
 python scripts\chc_langgraph_adapter.py examples\langgraph-future-run.json
+python scripts\chc_temporal_airflow_adapter.py examples\temporal-airflow-indirect-feedback.json
 python scripts\chc_verify_repair.py examples\self-prediction.trace.jsonl examples\future-run.trace.jsonl
 python scripts\chc_report.py examples\self-prediction.analysis.json
 python scripts\chc_eval_design_ir.py examples\design-ir-corpus
@@ -286,23 +297,31 @@ Edges can also be chained:
 E(D,D) -> R(D,D) -> E(D,D)
 ```
 
-### Mini-CHC Syntax
+### Mini-CHC v2 Syntax
 
-The mini parser supports canonical v1 examples:
+The mini parser supports CHC-0 rules:
 
 ```text
 D(y) = if H(y,y) then loop else halt
 run D(D)
 ```
 
-It also supports H-free L0-style wrappers:
+It also supports explicit L0 calls, CHC-1 recursion summaries, and CHC-2 higher-order effect annotations:
 
 ```text
+l0 Simulate
 Q_e() = simulate e(e); if e(e) halts then halt else diverge
 run Q_e()
+
+Rec(y) = let r = H(Rec,y) in if r then Rec(y) else halt
+run Rec(Task)
+
+Cb(x) = halt
+Apply(cb!Clean,x) = cb(x)
+run Apply(Cb,Task)
 ```
 
-The mini parser is intentionally small. Unsupported language forms return `parse_error` rather than being guessed.
+Unsupported language forms return `parse_error` or conservative `insufficient_info` rather than being guessed.
 
 ## Checker Output
 
@@ -344,11 +363,14 @@ JSON output:
 
 Fields:
 
-- `classification`: `causal_paradox`, `valid_acyclic`, or `parse_error`.
+- `classification`: `causal_paradox`, `valid_acyclic`, `insufficient_info`, or `parse_error`.
 - `graph`: generated or parsed causal graph edges.
 - `reachable_e_pairs`: E-node pairs connected by a nonempty path.
 - `unifier`: first unifier proving a causal paradox, or `null`.
 - `semantic_status`: `unproved` or `not_analyzed`.
+- `chc_level`: `CHC-0`, `CHC-1`, or `CHC-2`.
+- `effect_summaries`: CHC-1 fixed-point causal summaries.
+- `higher_order_effects`: CHC-2 callback/effect composition records.
 - `explanation`: short human-readable reason.
 
 ## Real Examples
@@ -432,7 +454,50 @@ D(D)  -> causal_paradox
 Q_e   -> valid_acyclic but unproved
 ```
 
-### 4. Valid Supervisor-Worker Agent
+### 4. CHC-1 Recursive Summary
+
+Input:
+
+```text
+Rec(y) = let r = H(Rec,y) in if r then Rec(y) else halt
+run Rec(Task)
+```
+
+Result:
+
+```json
+{
+  "classification": "causal_paradox",
+  "chc_level": "CHC-1",
+  "fixed_point_status": "converged"
+}
+```
+
+The checker computes a finite effect summary for the recursive definition and detects that the summary feeds the result of observing `Rec(Task)` back into `Rec(Task)`.
+
+### 5. CHC-2 Higher-Order Effect
+
+Input:
+
+```text
+Cb(x) = halt
+Apply(cb!Clean,x) = cb(x)
+run Apply(Cb,Task)
+```
+
+Result:
+
+```json
+{
+  "classification": "valid_acyclic",
+  "chc_level": "CHC-2",
+  "effect_composition_status": "complete"
+}
+```
+
+The `cb!Clean` annotation makes the callback effect explicit. Missing annotations return `insufficient_info`; callbacks cannot receive `HaltResult` values.
+
+### 6. Valid Supervisor-Worker Agent
 
 Input:
 
@@ -452,7 +517,7 @@ Result:
 
 A supervisor can observe a separate worker and use the result to schedule future work. The result does not feed back into the observed worker execution.
 
-### 5. Invalid Current-Run Self-Prediction
+### 7. Invalid Current-Run Self-Prediction
 
 Input:
 
@@ -473,7 +538,7 @@ The run asks whether this same run halts and then uses the answer to control its
 
 ## From Hygiene To Verification
 
-Version 1.7 extends the project beyond a prompt-level warning label. It adds an explicit causal verification pipeline:
+Version 2.0 extends the project beyond a prompt-level warning label. It adds an operational CHC-0/1/2 checker and explicit causal verification pipeline:
 
 ```text
 /causal-halting analyze-design <design-ir-json-file>
@@ -482,6 +547,7 @@ Version 1.7 extends the project beyond a prompt-level warning label. It adds an 
 /causal-halting adapt-workflow <workflow-json>
 /causal-halting adapt-otel <otel-json>
 /causal-halting adapt-langgraph <langgraph-json>
+/causal-halting adapt-temporal-airflow <temporal-airflow-json>
 /causal-halting eval-design-ir <corpus-dir>
 /causal-halting verify-repair <trace-before> <trace-after> [repair-json]
 /causal-halting report <analysis-or-repair-json>
@@ -624,7 +690,7 @@ executions + observations + controls
 
 into trace events that can be passed to `chc_trace_check.py`.
 
-### OpenTelemetry And LangGraph Adapters
+### OpenTelemetry, LangGraph, And Temporal/Airflow Adapters
 
 Use `adapt-otel` when production traces already carry explicit `chc.*` attributes:
 
@@ -635,7 +701,7 @@ python scripts/chc_otel_adapter.py examples/otel-self-prediction.json
 Supported OpenTelemetry attributes:
 
 ```text
-chc.event.type        exec_start | exec_end | observe | consume
+chc.event.type        exec_start | exec_end | observe | consume | control_exec
 chc.exec.id
 chc.program
 chc.input
@@ -643,8 +709,17 @@ chc.target_exec.id
 chc.result.id
 chc.consumer_exec.id
 chc.consumer
+chc.controlled_exec.id
+chc.controller_exec.id
+chc.controller
+chc.action
 chc.purpose
 chc.status
+chc.event.source
+chc.timestamp
+chc.span.id
+chc.parent.id
+chc.confidence
 ```
 
 Use `adapt-langgraph` for structured LangGraph-style run JSON:
@@ -653,7 +728,13 @@ Use `adapt-langgraph` for structured LangGraph-style run JSON:
 python scripts/chc_langgraph_adapter.py examples/langgraph-future-run.json
 ```
 
-Both adapters are deterministic. They do not infer causal meaning from span names, node names, edge labels, or prose.
+Use `adapt-temporal-airflow` for structured Temporal/Airflow-style run JSON:
+
+```powershell
+python scripts/chc_temporal_airflow_adapter.py examples/temporal-airflow-indirect-feedback.json
+```
+
+These adapters are deterministic. They preserve original IDs and optional audit metadata such as `event_source`, `timestamp`, `span_id`, `parent_id`, and `confidence`. They do not infer causal meaning from span names, node names, DAG labels, edge labels, or prose.
 
 ### Repair Reports
 
@@ -834,6 +915,12 @@ To convert structured LangGraph-style JSON:
 
 ```text
 /causal-halting adapt-langgraph examples/langgraph-future-run.json
+```
+
+To convert structured Temporal/Airflow-style JSON:
+
+```text
+/causal-halting adapt-temporal-airflow examples/temporal-airflow-indirect-feedback.json
 ```
 
 To evaluate the DesignIR corpus:
@@ -1153,6 +1240,7 @@ python scripts\chc_repair.py examples\self-prediction.analysis.json
 python scripts\chc_workflow_adapter.py examples\generic-workflow.json
 python scripts\chc_otel_adapter.py examples\otel-self-prediction.json
 python scripts\chc_langgraph_adapter.py examples\langgraph-future-run.json
+python scripts\chc_temporal_airflow_adapter.py examples\temporal-airflow-indirect-feedback.json
 python scripts\chc_verify_repair.py examples\self-prediction.trace.jsonl examples\future-run.trace.jsonl --repair examples\self-prediction.analysis.json
 python scripts\chc_report.py examples\self-prediction.analysis.json
 python scripts\chc_eval_design_ir.py examples\design-ir-corpus
@@ -1189,8 +1277,8 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 
 ## Limitations
 
-- The checker analyzes explicit CHC-0 artifacts only: graph DSL and mini-CHC syntax.
-- The checker detects CHC-0 causal graph failures only; it does not prove arbitrary termination or divergence.
+- The checker analyzes explicit structured artifacts only: graph DSL, Mini-CHC v2 syntax, DesignIR, and trace JSONL.
+- The checker detects CHC-0/1/2 causal graph failures only; it does not prove arbitrary termination or divergence.
 - The checker does not perform semantic halting analysis.
 - The design analyzer is conservative; natural-language input must be converted to explicit `DesignIR` by the LLM, and only the `DesignIR` classification is deterministic.
 - The trace analyzer is deterministic, but only for traces that follow the documented event schema.
@@ -1198,19 +1286,25 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 - The repair engine proposes architecture boundaries and proof obligations; it does not patch arbitrary application code.
 - The repair verifier checks trace-level obligations only when the before/after traces expose the relevant result and execution IDs.
 - The evaluation harness scores response shape with transparent text checks; it is not a model-graded benchmark.
-- The mini-CHC parser supports only v1 canonical syntax.
+- Mini-CHC v2 is intentionally small and supports only the documented CHC-0/1/2 operational subset.
 - Session mode through `/causal-halting` depends on the host plugin runtime exposing or propagating prompt/session context as expected.
 - When a slash-command runtime does not expose hook `session_id` directly, `/causal-halting` falls back to workspace-local session mode.
 - The background guard is a context rule, not a formal proof system.
 - L0 is treated as opaque and H-free.
-- Recursive CHC definitions are out of scope for v1.
-- Higher-order code and runtime code generation are out of scope for v1.
+- CHC-1 recursion is implemented through conservative finite effect summaries; non-convergence returns `insufficient_info`.
+- CHC-2 higher-order support requires explicit effect annotations; missing or incomplete composition returns `insufficient_info`.
+- Runtime code generation remains out of scope.
 
 ## Roadmap
 
-- CHC-1: recursive CHC definitions with fixed-point causal effect summaries.
-- CHC-2: controlled higher-order code with effect-polymorphic causal types.
-- Temporal/Airflow-style orchestrator adapters and Codex-style session traces when available.
+- Practical track: real traces and structured designs -> CHC events -> deterministic classification -> repair obligations -> verification -> Markdown/Mermaid report.
+- Formal track: CHC-0 -> CHC-1 -> CHC-2 -> CHC-3 -> CHC-4 -> CHC-5 -> CHC-Meta, without claiming to decide classical halting.
+- Stable interface docs: see `docs/interfaces.md`.
+- Formal roadmap: see `docs/formal-roadmap.md`.
+- CHC-3: process/session types for richer supervisor-worker protocols.
+- CHC-4: temporal/distributed trace semantics beyond the current JSONL event model.
+- CHC-5: probabilistic `PredictionResult` beyond binary halting observations.
+- Codex-style session traces when available.
 - Richer OpenTelemetry mappings for production span conventions beyond explicit `chc.*` attributes.
 - Interactive graph visualization for inferred and trace-derived E/R graphs.
 - Replace illustrative evaluation fixtures with live model comparison runs across several models.

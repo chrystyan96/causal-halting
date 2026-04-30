@@ -29,26 +29,33 @@ def obligation_status(obligation: dict[str, Any], after: dict[str, Any]) -> dict
     paths = list(after.get("feedback_paths", [])) + list(after.get("valid_paths", []))
     matching_paths = [path for path in paths if result_id in (None, path.get("result_id"))]
 
-    if name == "prediction_result_not_consumed_by_observed_execution":
+    if name in {
+        "prediction_result_not_consumed_by_observed_execution",
+        "result_not_consumed_by_observed_execution_before_end",
+    }:
         violating = [
             path
             for path in matching_paths
-            if path.get("consumer_exec_id") == forbidden_consumer
-            and path.get("relation") == "same_execution"
+            if (
+                path.get("consumer_exec_id") == forbidden_consumer
+                or path.get("target_exec_id") == forbidden_consumer
+                or path.get("controlled_exec_id") == forbidden_consumer
+            )
+            and path.get("relation") in {"same_execution", "indirect_same_execution_control"}
             and path.get("before_observed_exec_end")
         ]
         passed = not violating
-    elif name == "result_consumed_only_after_exec_end":
+    elif name in {"result_consumed_only_after_exec_end", "audit_only_after_end"}:
         violating = [
             path
             for path in matching_paths
             if path.get("relation") == "same_execution" and path.get("before_observed_exec_end")
         ]
-        passed = not violating and bool(matching_paths)
-    elif name == "result_consumed_by_external_orchestrator":
+        passed = not violating and any(path.get("relation") in {"same_execution_after_end", "audit_only"} for path in matching_paths)
+    elif name in {"result_consumed_by_external_orchestrator", "external_controller_consumes_result"}:
         passed = any(path.get("relation") == "external_controller" for path in matching_paths)
         violating = []
-    elif name == "future_run_control_only":
+    elif name in {"future_run_control_only", "future_run_consumes_result"}:
         passed = any(path.get("relation") in {"different_execution", "future_execution"} for path in matching_paths)
         violating = []
     else:

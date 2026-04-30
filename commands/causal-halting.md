@@ -1,6 +1,6 @@
 ---
 description: Manage Causal Halting mode, checker, DesignIR/trace analysis, adapters, corpus evaluation, repair verification, and reports
-argument-hint: [on|off|status|explain|check|analyze-design|analyze-trace|repair|adapt-workflow|adapt-otel|adapt-langgraph|eval-design-ir|verify-repair|report] [args]
+argument-hint: [on|off|status|explain|check|analyze-design|analyze-trace|repair|adapt-workflow|adapt-otel|adapt-langgraph|adapt-temporal-airflow|eval-design-ir|verify-repair|report] [args]
 allowed-tools: Bash(python:*)
 ---
 
@@ -20,6 +20,7 @@ repair <analysis-json>
 adapt-workflow <workflow-json>
 adapt-otel <otel-json>
 adapt-langgraph <langgraph-json>
+adapt-temporal-airflow <temporal-airflow-json>
 eval-design-ir <corpus-dir>
 verify-repair <trace-before> <trace-after> [repair-json]
 report <analysis-or-repair-json>
@@ -52,7 +53,7 @@ After the command output is available:
 - For `analyze-trace`, report the deterministic trace classification and exact feedback path when present.
 - For `repair`, report the before/after causal boundary and proof obligations.
 - For `adapt-workflow`, report the generated JSONL events and say they still need trace analysis.
-- For `adapt-otel` or `adapt-langgraph`, report the generated JSONL events and say they still need trace analysis.
+- For `adapt-otel`, `adapt-langgraph`, or `adapt-temporal-airflow`, report the generated JSONL events and say they still need trace analysis.
 - For `eval-design-ir`, report pass/fail counts and any failed corpus cases.
 - For `verify-repair`, report whether verification passed, with before/after classifications and proof-obligation statuses.
 - For `report`, return the Markdown/Mermaid report.

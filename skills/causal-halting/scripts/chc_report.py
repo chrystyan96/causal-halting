@@ -42,6 +42,8 @@ def render_markdown(data: dict[str, Any]) -> str:
         "# Causal Halting Report",
         "",
         f"**Classification:** `{classification}`",
+        "",
+        "CHC does not solve classical halting. This report only analyzes structured prediction-feedback paths.",
     ]
     if data.get("semantic_status"):
         lines.append(f"**Semantic status:** `{data['semantic_status']}`")

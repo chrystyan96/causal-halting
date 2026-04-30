@@ -318,6 +318,18 @@ class CausalHaltingSessionGuardTests(unittest.TestCase):
         self.assertEqual(result["mode"], "adapt-langgraph")
         self.assertIn('"type": "consume"', result["analysis_output"])
 
+    def test_adapt_temporal_airflow_command_outputs_events(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "temporal.json"
+            path.write_text(
+                (ROOT / "examples" / "temporal-airflow-indirect-feedback.json").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            result = chc_session_guard.command_result(Path(tmp), "adapt-temporal-airflow", str(path))
+
+        self.assertEqual(result["mode"], "adapt-temporal-airflow")
+        self.assertIn('"type": "control_exec"', result["analysis_output"])
+
     def test_report_command_renders_markdown(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "analysis.json"

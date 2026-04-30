@@ -340,6 +340,11 @@ def adapt_structured(root: Path, target: str | None, adapter_name: str, mode: st
     if adapter_name == "chc_otel_adapter":
         events = adapter.otel_to_events(payload)
         errors = adapter.validate_events(events)
+    elif adapter_name == "chc_temporal_airflow_adapter":
+        if not isinstance(payload, dict):
+            return command_file_error(root, mode, "Input must be a JSON object.")
+        errors = adapter.validate_payload(payload)
+        events = adapter.temporal_airflow_to_events(payload)
     else:
         if not isinstance(payload, dict):
             return command_file_error(root, mode, "Input must be a JSON object.")
@@ -556,6 +561,14 @@ def command_result(root: Path, mode: str, target: str | None = None) -> dict[str
             "adapt-langgraph",
             "Missing LangGraph-style JSON file path. Usage: /causal-halting adapt-langgraph <langgraph-json>",
         )
+    if normalized == "adapt-temporal-airflow":
+        return adapt_structured(
+            root,
+            target,
+            "chc_temporal_airflow_adapter",
+            "adapt-temporal-airflow",
+            "Missing Temporal/Airflow-style JSON file path. Usage: /causal-halting adapt-temporal-airflow <temporal-airflow-json>",
+        )
     if normalized == "eval-design-ir":
         return eval_design_ir(root, target)
     if normalized == "verify-repair":
@@ -567,7 +580,7 @@ def command_result(root: Path, mode: str, target: str | None = None) -> dict[str
         "enabled": read_project_enabled(root),
         "scope": "project",
         "state_path": str(project_state_path(root)),
-        "message": "Invalid mode. Use: on, off, status, explain, check <file>, analyze-design <design-ir-json>, analyze-trace <jsonl-file>, repair <analysis-json>, adapt-workflow <workflow-json>, adapt-otel <otel-json>, adapt-langgraph <langgraph-json>, eval-design-ir <corpus-dir>, verify-repair <before> <after> [repair-json], or report <analysis-json>.",
+        "message": "Invalid mode. Use: on, off, status, explain, check <file>, analyze-design <design-ir-json>, analyze-trace <jsonl-file>, repair <analysis-json>, adapt-workflow <workflow-json>, adapt-otel <otel-json>, adapt-langgraph <langgraph-json>, adapt-temporal-airflow <temporal-airflow-json>, eval-design-ir <corpus-dir>, verify-repair <before> <after> [repair-json], or report <analysis-json>.",
     }
 
 
@@ -588,6 +601,7 @@ def format_command_human(result: dict[str, Any]) -> str:
         "adapt-workflow",
         "adapt-otel",
         "adapt-langgraph",
+        "adapt-temporal-airflow",
         "eval-design-ir",
         "verify-repair",
         "report",

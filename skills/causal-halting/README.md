@@ -6,7 +6,7 @@ This package is the portable skill distribution for `causal-halting`. It is suit
 
 ## What It Does
 
-The skill applies Causal Halting Calculus (CHC-0) as an analysis method.
+The skill applies Causal Halting Calculus (CHC-0/1/2) as an analysis method.
 
 It separates two failure modes:
 
@@ -32,6 +32,7 @@ causal-halting/
     openai.yaml
   references/
     causal-halting-calculus.md
+    chc-1-2-operational.md
     design-ir-extraction.md
   scripts/
     chc_check.py
@@ -44,14 +45,18 @@ causal-halting/
     chc_workflow_adapter.py
     chc_otel_adapter.py
     chc_langgraph_adapter.py
+    chc_temporal_airflow_adapter.py
     chc_verify_repair.py
   examples/
     diagonal.chc
     diagonal.graph
+    chc1-recursive-feedback.chc
+    chc2-higher-order-safe.chc
     future-run.trace.jsonl
     generic-workflow.json
     langgraph-future-run.json
     otel-self-prediction.json
+    temporal-airflow-indirect-feedback.json
     post-end-audit.trace.jsonl
     qe-valid-acyclic.chc
     safe-supervisor.graph
@@ -121,6 +126,7 @@ python scripts/chc_repair.py examples/self-prediction.analysis.json
 python scripts/chc_workflow_adapter.py examples/generic-workflow.json
 python scripts/chc_otel_adapter.py examples/otel-self-prediction.json
 python scripts/chc_langgraph_adapter.py examples/langgraph-future-run.json
+python scripts/chc_temporal_airflow_adapter.py examples/temporal-airflow-indirect-feedback.json
 python scripts/chc_verify_repair.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl
 python scripts/chc_report.py examples/self-prediction.analysis.json
 python scripts/chc_eval_design_ir.py examples/design-ir-corpus
@@ -130,7 +136,8 @@ Checker classifications:
 
 ```text
 causal_paradox  unifiable prediction-feedback cycle found
-valid_acyclic   no CHC-0 causal paradox detected
+valid_acyclic   no CHC causal paradox detected
+insufficient_info conservative rejection for incomplete recursion/effect information
 parse_error     unsupported or invalid checker input
 ```
 
@@ -191,7 +198,7 @@ The supervisor observes a separate worker. The result does not feed back into th
 
 ## Design, Trace, And Repair Workflows
 
-The portable skill also includes the v1.7 analysis scripts:
+The portable skill also includes the v2.0 analysis scripts:
 
 ```text
 chc_design_analyze.py  analyze explicit DesignIR JSON
@@ -203,6 +210,7 @@ chc_eval_design_ir.py  evaluate DesignIR corpus fixtures without parsing prose
 chc_workflow_adapter.py convert generic workflow JSON to CHC trace JSONL
 chc_otel_adapter.py    convert explicitly annotated OpenTelemetry JSON to CHC trace JSONL
 chc_langgraph_adapter.py convert structured LangGraph-style JSON to CHC trace JSONL
+chc_temporal_airflow_adapter.py convert structured Temporal/Airflow-style JSON to CHC trace JSONL
 chc_verify_repair.py   verify before/after trace repair
 ```
 
@@ -233,12 +241,14 @@ The `examples/design-ir-corpus/` fixtures separate natural-language descriptions
 
 - Does not solve the classical Halting Problem.
 - Does not prove arbitrary termination or divergence.
-- Checks explicit CHC-0 graph DSL and mini-CHC artifacts only.
+- Checks explicit graph DSL and Mini-CHC v2 artifacts only.
 - Natural-language designs must be interpreted into `DesignIR` by the LLM before script analysis.
 - Deterministically checks traces only when they follow the documented JSONL schema.
-- Converts only documented structured formats. OpenTelemetry requires explicit `chc.*` attributes, and LangGraph-style input requires explicit causal fields.
+- Converts only documented structured formats. OpenTelemetry requires explicit `chc.*` attributes, and LangGraph/Temporal/Airflow-style input requires explicit causal fields.
 - Produces causal refactoring guidance, not arbitrary code patches.
 - Treats semantic undecidability as `unproved`, not as `causal_paradox`.
+- CHC-1 recursion is checked through conservative finite effect summaries.
+- CHC-2 higher-order calls require explicit effect annotations.
 - Does not include the full Codex plugin hook or `/causal-halting` slash command. Those live in the full plugin repository.
 
 ## License

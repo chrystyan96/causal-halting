@@ -58,6 +58,18 @@ and then changes itself because of the answer
 
 Causal Halting gives a way to notice that boundary before it becomes an architectural habit.
 
+## V2.0 Operational Core
+
+The v2.0 checker supports the first three operational layers:
+
+```text
+CHC-0  finite first-order graph generation
+CHC-1  recursive causal effect summaries
+CHC-2  higher-order calls with explicit effect annotations
+```
+
+If recursion summaries do not converge or higher-order effects are missing, the checker returns `insufficient_info` instead of accepting an unsafe program.
+
 ## Practical Verification Pipeline
 
 The current plugin is no longer only a prompt-level warning label. The useful
@@ -79,6 +91,7 @@ analyze-design   check explicit DesignIR v1.0
 analyze-trace    check JSONL execution events
 adapt-otel       convert annotated OpenTelemetry JSON
 adapt-langgraph  convert structured LangGraph-style JSON
+adapt-temporal-airflow convert structured Temporal/Airflow-style JSON
 repair           propose a safer orchestration boundary
 verify-repair    check before/after traces and proof obligations
 report           render Markdown/Mermaid output
@@ -114,7 +127,10 @@ See [case studies](./case-studies.md).
 
 - Repository: [github.com/chrystyan96/causal-halting](https://github.com/chrystyan96/causal-halting)
 - Technical note: [CHC-0 technical overview](./chc-0.md)
+- CHC-1/2: [recursive summaries and higher-order effects](./chc-1-2.md)
 - Case studies: [practical architecture cases](./case-studies.md)
+- Interfaces: [structured artifacts and schemas](./interfaces.md)
+- Formal roadmap: [CHC theory layers](./formal-roadmap.md)
 - Evaluation notes: [measuring answer quality](./evaluation.md)
 - OpenTelemetry guide: [explicit CHC trace attributes](./otel-instrumentation.md)
 - Publication status: [submissions and links](./publication.md)
