@@ -793,6 +793,7 @@ Skill is valid!
 Current status:
 
 ```text
+GitHub Pages site: https://chrystyan96.github.io/causal-halting/
 openai/skills experimental PR: https://github.com/openai/skills/pull/380
 official Codex plugin proposal package: submissions/codex-plugin-official-proposal.md
 official request draft: submissions/codex-plugin-official-request.md

@@ -1,0 +1,8 @@
+title: Causal Halting
+description: Detecting prediction-feedback loops in halting-style reasoning and AI agent designs.
+theme: minima
+
+header_pages:
+  - index.md
+  - chc-0.md
+  - publication.md
