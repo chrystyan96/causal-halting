@@ -1,6 +1,8 @@
 import json
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -108,6 +110,29 @@ class PortableSkillPackageTests(unittest.TestCase):
 
         self.assertEqual("valid_acyclic", result["classification"])
         self.assertEqual("unproved", result["semantic_status"])
+
+    def test_sync_tool_runs_from_isolated_skill_package(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            isolated = Path(tmp) / "causal-halting"
+            shutil.copytree(SKILL_ROOT, isolated)
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(isolated / "scripts" / "sync_skill_package.py"),
+                    "--check",
+                    "--format",
+                    "json",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            result = json.loads(completed.stdout)
+            self.assertEqual("unknown", result["plugin_version"])
+            self.assertTrue(Path(result["portable_skill"]).samefile(isolated))
+            self.assertEqual([], result["targets"][0]["mismatches"])
 
     def run_skill_checker(self, relative_input):
         completed = subprocess.run(
