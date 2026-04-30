@@ -1,1 +1,6 @@
 submissions/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.tmp/
+*.egg-info/

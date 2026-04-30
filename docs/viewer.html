@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Causal Halting Viewer</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; color: #111827; background: #f8fafc; }
+    main { max-width: 980px; margin: 0 auto; padding: 32px 20px 56px; }
+    h1 { margin-bottom: 4px; }
+    textarea { width: 100%; min-height: 220px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; }
+    button, input { font: inherit; margin: 8px 8px 8px 0; }
+    button { border: 1px solid #2563eb; background: #2563eb; color: white; padding: 8px 14px; border-radius: 6px; cursor: pointer; }
+    section { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px; margin: 18px 0; }
+    pre { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px; overflow-x: auto; }
+    .badge { display: inline-block; border-radius: 999px; padding: 4px 10px; font-weight: 700; }
+    .causal_paradox { background: #fee2e2; color: #991b1b; }
+    .valid_acyclic { background: #dcfce7; color: #166534; }
+    .insufficient_info { background: #fef3c7; color: #92400e; }
+    .parse_error { background: #e5e7eb; color: #374151; }
+    .warning { border-left: 4px solid #f59e0b; background: #fffbeb; }
+    .muted { color: #64748b; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Causal Halting Viewer</h1>
+  <p class="muted">Paste an analyzer JSON result or load a local file. This viewer is static and does not call external APIs.</p>
+
+  <section>
+    <input id="file" type="file" accept=".json,.txt">
+    <button id="render">Render</button>
+    <textarea id="input" placeholder="Paste CHC analysis JSON here"></textarea>
+  </section>
+
+  <section id="output" class="warning">
+    <strong>Scope warning:</strong> <code>valid_acyclic</code> only means no modeled prediction-feedback cycle was found. It does not prove termination, safety, correctness, or absence of unmodeled feedback.
+  </section>
+</main>
+
+<script>
+const input = document.getElementById("input");
+const output = document.getElementById("output");
+document.getElementById("file").addEventListener("change", async event => {
+  const file = event.target.files && event.target.files[0];
+  if (file) input.value = await file.text();
+});
+document.getElementById("render").addEventListener("click", render);
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+function list(items, empty) {
+  if (!Array.isArray(items) || items.length === 0) return `<p class="muted">${esc(empty)}</p>`;
+  return `<ul>${items.map(item => `<li>${esc(typeof item === "string" ? item : JSON.stringify(item))}</li>`).join("")}</ul>`;
+}
+
+function graphLines(data) {
+  const edges = data.graph || data.inferred_graph || data.process_graph || data.session_graph || [];
+  if (!Array.isArray(edges) || edges.length === 0) return "No modeled causal edges.";
+  return edges.map(edge => String(edge)).join("\\n");
+}
+
+function render() {
+  let data;
+  try {
+    data = JSON.parse(input.value);
+  } catch (error) {
+    output.innerHTML = `<section><span class="badge parse_error">parse_error</span><p>${esc(error.message)}</p></section>`;
+    return;
+  }
+  const classification = data.classification || data.verification || "unknown";
+  const badgeClass = ["causal_paradox", "valid_acyclic", "insufficient_info", "parse_error"].includes(classification) ? classification : "parse_error";
+  const obligations = data.proof_obligations || data.obligations_checked || [];
+  const feedback = data.feedback_paths || data.reachable_e_pairs || [];
+  const identity = data.identity_resolution || {};
+  output.innerHTML = `
+    <section>
+      <span class="badge ${badgeClass}">${esc(classification)}</span>
+      <p><strong>Explanation:</strong> ${esc(data.explanation || "No explanation provided.")}</p>
+      <p><strong>Validity scope:</strong> <code>${esc(data.validity_scope || "no_modeled_prediction_feedback_only")}</code></p>
+    </section>
+    <section class="warning">
+      <strong>Scope warning:</strong> <code>valid_acyclic</code> only means no modeled prediction-feedback cycle was found. It does not prove termination, safety, correctness, or absence of unmodeled feedback.
+    </section>
+    <section>
+      <h2>Causal Graph</h2>
+      <pre>${esc(graphLines(data))}</pre>
+    </section>
+    <section>
+      <h2>Feedback / Reachability Paths</h2>
+      ${list(feedback, "No feedback paths reported.")}
+    </section>
+    <section>
+      <h2>Proof Obligations</h2>
+      ${list(obligations, "No proof obligations reported.")}
+    </section>
+    <section>
+      <h2>Identity Resolution</h2>
+      <p>resolved=${esc((identity.resolved || []).length)}, ambiguous=${esc((identity.ambiguous || []).length)}, missing=${esc((identity.missing || []).length)}, conflicts=${esc((identity.conflicts || []).length)}</p>
+    </section>
+  `;
+}
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 {
   "name": "causal-halting",
-  "version": "3.1.0",
-  "description": "A Codex skill, prompt guard, DesignIR verifier, CHC-0/1/2/3/4/5 analyzers, trace adapters, corpus evaluator, repair certificates, and Markdown/Mermaid reporter for prediction-feedback loops.",
+  "version": "4.0.0",
+  "description": "A Python CLI, Codex skill, prompt guard, DesignIR verifier, CHC-0/1/2/3/4/5 analyzers, trace adapters, v4 corpus evaluator, repair certificates, static viewer, and Markdown/Mermaid reporter for prediction-feedback loops.",
   "author": {
     "name": "Chrystyan Byrnes",
     "url": "https://github.com/chrystyan96/causal-halting"
@@ -23,7 +23,7 @@
   "interface": {
     "displayName": "Causal Halting",
     "shortDescription": "Analyze and refactor prediction-feedback loops in agent systems.",
-    "longDescription": "Causal Halting packages a Codex skill, low-cost UserPromptSubmit context guard, operational CHC-0/CHC-1/CHC-2 checker, CHC-3 process/session analyzer, CHC-4 temporal trace analyzer, CHC-5 probabilistic prediction analyzer, DesignIR-only verifier, deterministic trace analyzer, generic workflow/OpenTelemetry/LangGraph/Temporal/Airflow adapters, DesignIR corpus evaluator, repair certificates, proof-obligation repair verifier, Markdown/Mermaid reporter, and Lean proof-track skeleton for separating structural prediction-feedback cycles from ordinary semantic undecidability. Natural language must be interpreted by the LLM into DesignIR before deterministic analysis.",
+    "longDescription": "Causal Halting packages a unified Python CLI, Codex skill, low-cost UserPromptSubmit context guard, operational CHC-0/CHC-1/CHC-2 checker, CHC-3 process/session analyzer, CHC-4 temporal trace analyzer, CHC-5 probabilistic prediction analyzer, DesignIR-only verifier, deterministic trace analyzer, generic workflow/OpenTelemetry/LangGraph/Temporal/Airflow adapters, v4 DesignIR corpus evaluator, repair certificates, proof-obligation repair verifier, static viewer, Markdown/Mermaid reporter, and Lean proof-track skeleton for separating structural prediction-feedback cycles from ordinary semantic undecidability. Natural language must be interpreted by the LLM into DesignIR before deterministic analysis.",
     "developerName": "Chrystyan Byrnes",
     "category": "Developer Tools",
     "capabilities": [

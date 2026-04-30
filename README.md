@@ -1,16 +1,17 @@
 # Causal Halting
 
-A Codex skill, low-cost prompt guard, operational CHC-0/CHC-1/CHC-2 checker, CHC-3 process/session analyzer, CHC-4 temporal trace analyzer, CHC-5 probabilistic prediction analyzer, DesignIR verifier, trace analyzer, repair certificates, and report workflow for detecting prediction-feedback loops in halting-style reasoning and agent architectures.
+A Python package, unified CLI, Codex skill, low-cost prompt guard, operational CHC-0/CHC-1/CHC-2 checker, CHC-3 process/session analyzer, CHC-4 temporal trace analyzer, CHC-5 probabilistic prediction analyzer, DesignIR verifier, trace analyzer, repair certificates, viewer, and report workflow for detecting prediction-feedback loops in agent architectures.
 
-`causal-halting` packages seven things:
+`causal-halting` packages eight things:
 
-1. a Codex skill for applying Causal Halting Calculus (CHC-0/1/2);
-2. a formal reference note for the CHC-0 rules and theorem boundary;
-3. a Python checker for graph DSL and Mini-CHC v2 programs with recursion summaries and higher-order effects;
-4. a DesignIR verifier and trace analyzer for agent/workflow systems;
-5. a causal repair workflow that proposes safer execution boundaries;
-6. a low-cost background prompt guard that lets the main LLM detect CHC-0 cases from causal structure, not keyword matching.
-7. CHC-3/4/5 structured analyzers for process/session flows, temporal traces, and probabilistic PredictionResult feedback.
+1. a local Python package with the unified `chc` CLI;
+2. a Codex skill for applying Causal Halting Calculus (CHC-0/1/2);
+3. a formal reference note for the CHC-0 rules and theorem boundary;
+4. a Python checker for graph DSL and Mini-CHC v2 programs with recursion summaries and higher-order effects;
+5. a DesignIR verifier and trace analyzer for agent/workflow systems;
+6. a causal repair workflow that proposes safer execution boundaries;
+7. a low-cost background prompt guard that lets the main LLM detect CHC-0 cases from causal structure, not keyword matching;
+8. CHC-3/4/5 structured analyzers for process/session flows, temporal traces, and probabilistic PredictionResult feedback.
 
 The project is a research tool. It does not solve the classical Halting Problem. It gives a concrete way to separate two different failure modes that are often conflated:
 
@@ -128,19 +129,24 @@ Unification matters because code values range over infinitely many programs. Ins
 
 ```text
 causal-halting/
+  pyproject.toml
   README.md
   LICENSE.txt
+  causal_halting/
+    cli.py
   .codex-plugin/
     plugin.json
   commands/
     causal-halting.md
   docs/
+    quick-start.md
+    cli.md
+    adapters.md
+    gallery.md
+    viewer.html
     evaluation.md
-  submissions/
-    openai-skills-experimental-pr.md
-    codex-plugin-official-proposal.md
-    codex-plugin-official-request.md
   evals/
+    v4/
     prompts.jsonl
     baseline-responses.jsonl
     guarded-responses.jsonl
@@ -228,6 +234,21 @@ causal-halting/
 ```
 
 ## Installation
+
+### Quick Start With The CLI
+
+```powershell
+python -m pip install -e .
+chc version
+chc demo --output .tmp/demo
+chc check examples/diagonal.graph --format json
+chc trace examples/self-prediction.trace.jsonl --format json
+chc verify-repair examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl --repair examples/self-prediction.analysis.json --format json
+```
+
+Open `.tmp/demo/report.md` to review the end-to-end demo report.
+
+The original `scripts/*.py` entrypoints remain available for compatibility.
 
 ### Install The Codex Skill From GitHub
 
@@ -559,19 +580,17 @@ The run asks whether this same run halts and then uses the answer to control its
 
 ## From Hygiene To Verification
 
-Version 3.1 extends the project beyond a prompt-level warning label. It keeps the operational CHC-0/1/2 checker and upgrades CHC-3/4/5 with strict identity handling, validity-scope metadata, and Lean-backed core structural rules:
+Version 4.0 extends the project beyond a prompt-level warning label. It keeps the operational CHC-0/1/2/3/4/5 analyzers and adds a unified `chc` CLI, local package installability, an end-to-end demo, a static viewer, stronger reports, and a 100-case v4 evaluation corpus:
 
 ```text
-/causal-halting analyze-design <design-ir-json-file>
-/causal-halting analyze-trace <jsonl-file>
-/causal-halting repair <analysis-json>
-/causal-halting adapt-workflow <workflow-json>
-/causal-halting adapt-otel <otel-json>
-/causal-halting adapt-langgraph <langgraph-json>
-/causal-halting adapt-temporal-airflow <temporal-airflow-json>
-/causal-halting eval-design-ir <corpus-dir>
-/causal-halting verify-repair <trace-before> <trace-after> [repair-json]
-/causal-halting report <analysis-or-repair-json>
+chc demo
+chc check <graph-or-chc-file>
+chc design <design-ir-json>
+chc trace <trace-jsonl>
+chc repair <analysis-json>
+chc verify-repair <before> <after> --repair <repair-json>
+chc report <analysis-json>
+chc eval evals/v4
 ```
 
 The intent is to move from:
@@ -816,6 +835,7 @@ Use `eval-design-ir` to validate extraction fixtures without parsing prose:
 ```powershell
 python scripts/chc_eval_design_ir.py examples/design-ir-corpus
 python scripts/chc_eval_suite.py examples/design-ir-corpus
+chc eval evals/v4 --format json
 python scripts/chc_certificate.py examples/self-prediction.trace.jsonl examples/future-run.trace.jsonl --repair examples/self-prediction.analysis.json
 python scripts/chc_process_check.py examples/process-self-feedback.process-ir.json
 python scripts/chc_temporal_check.py examples/temporal-self-feedback.trace.jsonl
@@ -823,7 +843,7 @@ python scripts/chc_prediction_check.py examples/prediction-self-risk.prediction-
 python scripts/sync_skill_package.py --check
 ```
 
-Version 3.1 adds trust infrastructure: capability-boundary metadata, mandatory validity-scope metadata, identity-resolution reports, analysis profiles, DesignIR schema validation, repair certificates, CHC-3/4/5 structured analyzers, a Lean proof track for core CHC-0/1/2/3/4/5 invariants, a 50-case DesignIR evaluation corpus, and real case-study fixtures.
+Version 4.0 adds usability and evidence infrastructure: package installability, unified CLI, demo artifacts, report/viewer workflow, adapter fixtures, capability-boundary metadata, mandatory validity-scope metadata, identity-resolution reports, DesignIR schema validation, repair certificates, CHC-3/4/5 structured analyzers, a Lean proof track for core CHC-0/1/2/3/4/5 invariants, a 100-case v4 evaluation corpus, and real case-study fixtures.
 
 Each corpus case separates:
 
@@ -1289,8 +1309,6 @@ Current status:
 ```text
 GitHub Pages site: https://chrystyan96.github.io/causal-halting/
 openai/skills experimental PR: https://github.com/openai/skills/pull/380
-official Codex plugin proposal package: submissions/codex-plugin-official-proposal.md
-official request draft: submissions/codex-plugin-official-request.md
 ```
 
 Recommended path:

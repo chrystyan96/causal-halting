@@ -78,7 +78,7 @@ Remaining theorem work:
 - substitution preserves causal safety;
 - higher-order callbacks cannot smuggle observation results into the observed execution.
 
-## V3.1 Formal Status
+## V4.0 Formal Status
 
 The Lean track now covers core structural invariants for CHC-0 through CHC-5:
 
@@ -95,7 +95,7 @@ This is not a mechanized proof of arbitrary termination and not a full mechaniza
 
 ## CHC-3: Processes, Supervisors, And Sessions
 
-V3.1 operational status: implemented as `chc_process_check.py` over stricter structured `ProcessIR`, including process/session/channel/execution/result identity checks and multi-hop route detection.
+V4.0 operational status: implemented as `chc_process_check.py` over stricter structured `ProcessIR`, including process/session/channel/execution/result identity checks and multi-hop route detection.
 
 Goal: model agents, supervisors, workers, monitors, and orchestrators as typed processes.
 
@@ -118,7 +118,7 @@ This is where CHC connects most directly to session types and information-flow s
 
 ## CHC-4: Temporal And Distributed Traces
 
-V3.1 operational status: implemented as `chc_temporal_check.py` over temporal JSONL traces with explicit happens-before, span parent links, logical clocks, and safe timestamp ordering.
+V4.0 operational status: implemented as `chc_temporal_check.py` over temporal JSONL traces with explicit happens-before, span parent links, logical clocks, and safe timestamp ordering.
 
 Goal: reason over observed execution traces rather than only static terms.
 
@@ -142,7 +142,7 @@ Temporal facts:
 
 ## CHC-5: Probabilistic And AI Predictions
 
-V3.1 operational status: implemented as `chc_prediction_check.py` over structured `PredictionIR` with explicit prediction scope and confidence ignored for classification.
+V4.0 operational status: implemented as `chc_prediction_check.py` over structured `PredictionIR` with explicit prediction scope and confidence ignored for classification.
 
 Goal: generalize `HaltResult` to broader `PredictionResult` values.
 
@@ -193,4 +193,4 @@ Order:
 6. Prove the boundary theorem.
 7. Extend to CHC-1 effect summaries.
 
-V3.1 expands this track under `formal/lean/` from a CHC-0 skeleton into modules for CHC-0/1/2/3/4/5 core invariants. Future work is to mechanize the full parser-to-proof correspondence and richer CHC-1/2 soundness theorems.
+V4.0 expands this track under `formal/lean/` from a CHC-0 skeleton into modules for CHC-0/1/2/3/4/5 core invariants. Future work is to mechanize the full parser-to-proof correspondence and richer CHC-1/2 soundness theorems.

@@ -58,9 +58,9 @@ and then changes itself because of the answer
 
 Causal Halting gives a way to notice that boundary before it becomes an architectural habit.
 
-## V3.1 Operational Core
+## V4.0 Operational Core
 
-The v3.1 package supports six operational layers with stricter identity and scope metadata:
+The v4.0 package supports six operational layers with stricter identity and scope metadata:
 
 ```text
 CHC-0  finite first-order graph generation
@@ -145,7 +145,13 @@ See [case studies](./case-studies.md).
 ## Project Links
 
 - Repository: [github.com/chrystyan96/causal-halting](https://github.com/chrystyan96/causal-halting)
+- Quick start: [runnable v4 path](./quick-start.md)
+- CLI: [unified `chc` commands](./cli.md)
+- Adapters: [OpenTelemetry, LangGraph, Temporal/Airflow](./adapters.md)
+- Gallery: [safe and unsafe architecture patterns](./gallery.md)
+- Viewer: [static JSON report viewer](./viewer.html)
 - Formal note: [Causal Halting Calculus](./articles/causal-halting-calculus.md)
+- V4 technical note: [package, CLI, and structured verification](./articles/v4-technical-note.md)
 - Technical note: [CHC-0 technical overview](./chc-0.md)
 - CHC-1/2: [recursive summaries and higher-order effects](./chc-1-2.md)
 - CHC-1: [effect summaries](./chc-1.md)
@@ -159,7 +165,7 @@ See [case studies](./case-studies.md).
 - Formal roadmap: [CHC theory layers](./formal-roadmap.md)
 - Evaluation notes: [measuring answer quality](./evaluation.md)
 - OpenTelemetry guide: [explicit CHC trace attributes](./otel-instrumentation.md)
-- Publication status: [submissions and links](./publication.md)
+- Publication status: [current publication surfaces](./publication.md)
 - OpenAI Skills PR: [openai/skills#380](https://github.com/openai/skills/pull/380)
 
 ## One Sentence

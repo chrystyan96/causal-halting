@@ -117,7 +117,7 @@ Every report must state that CHC does not solve classical halting.
 
 ## Future Interfaces
 
-V3.1 treats these structured interfaces as first-class analyzer inputs:
+V4.0 treats these structured interfaces as first-class analyzer inputs:
 
 ```text
 ProcessIR

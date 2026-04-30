@@ -11,7 +11,7 @@ CHC-1 extends CHC-0 with recursive CHC functions. It does not inline recursion f
 Eff(f) = fixed point of body_effect(f)
 ```
 
-V3.1 exposes summaries as structured metadata:
+V4.0 exposes summaries as structured metadata:
 
 ```json
 {

@@ -27,26 +27,21 @@ Current submitted branch:
 chrystyan96:add-causal-halting-experimental -> openai:main
 ```
 
-The current local package is v3.1 and includes operational CHC-0/CHC-1/CHC-2
-checking, stricter CHC-3 ProcessIR analysis, CHC-4 happens-before trace
-analysis, CHC-5 PredictionIR analysis, DesignIR v1.0 analysis, deterministic
-trace checking, OpenTelemetry/LangGraph/Temporal/Airflow adapters, indirect
-feedback detection, identity-resolution metadata, validity-scope metadata,
-proof-obligation repair verification, repair certificates, schemas, a Lean
-proof track for core CHC-0/1/2/3/4/5 structural rules, and Markdown/Mermaid
-reports.
+The current local package is v4.0 and includes the unified `chc` CLI, local
+package installability, end-to-end demo, operational CHC-0/CHC-1/CHC-2
+checking, CHC-3 ProcessIR analysis, CHC-4 happens-before trace analysis,
+CHC-5 PredictionIR analysis, DesignIR v1.0 analysis, deterministic trace
+checking, OpenTelemetry/LangGraph/Temporal/Airflow adapters,
+identity-resolution metadata, validity-scope metadata, proof-obligation repair
+verification, repair certificates, schemas, a static viewer, a 100-case v4
+evaluation corpus, a Lean proof track for core CHC-0/1/2/3/4/5 structural
+rules, and Markdown/Mermaid reports.
 
 ## Codex Plugin Proposal
 
 Official Codex plugin proposal package:
 
-[codex-plugin-official-proposal.md](https://github.com/chrystyan96/causal-halting/blob/master/submissions/codex-plugin-official-proposal.md)
-
-## LinkedIn Draft
-
-The LinkedIn summary draft is maintained at:
-
-[linkedin-post.md](https://github.com/chrystyan96/causal-halting/blob/master/submissions/linkedin-post.md)
+Publication drafts are intentionally kept outside the tracked repository.
 
 ## Citation Status
 

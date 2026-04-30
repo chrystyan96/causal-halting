@@ -35,6 +35,7 @@ The repository also includes deterministic corpus checks:
 
 ```powershell
 python scripts/chc_eval_design_ir.py examples/design-ir-corpus
+chc eval evals/v4 --format json
 ```
 
 The corpus is deliberately split:
@@ -60,6 +61,20 @@ Response-quality evaluation and corpus evaluation answer different questions:
 response eval: did the assistant use the CHC lens well?
 corpus eval: does explicit DesignIR classify correctly?
 ```
+
+## V4 Corpus
+
+V4 adds a 100-case structured corpus under `evals/v4`:
+
+```text
+40 causal_paradox
+40 valid_acyclic
+20 insufficient_info
+```
+
+The corpus includes safe non-problem examples such as ordinary loops, future-run retries, logging-only observations, post-run scoring, and local progress counters.
+
+`chc eval` reports total cases, passed/failed counts, classification accuracy, coverage, and false-positive/false-negative categories. It still does not parse natural language; `description.md` files are human context and extraction fixtures only.
 
 ## Current Sample Result
 

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "causal-halting"
+version = "4.0.0"
+description = "Causal analysis tools for prediction-feedback loops in agent architectures."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "Chrystyan Byrnes" }
+]
+dependencies = []
+
+[project.scripts]
+chc = "causal_halting.cli:main"
+
+[tool.setuptools]
+packages = ["causal_halting"]
