@@ -1,0 +1,30 @@
+name: causal-halting-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run Python tests
+        run: python -m unittest discover -s tests
+      - name: Validate JSON manifests and schemas
+        run: |
+          python -m json.tool .codex-plugin/plugin.json >/dev/null
+          python -m json.tool hooks/hooks.json >/dev/null
+          for f in schemas/*.json; do python -m json.tool "$f" >/dev/null; done
+      - name: Optional Lean build
+        shell: bash
+        run: |
+          if command -v lake >/dev/null 2>&1; then
+            cd formal/lean
+            lake build
+          else
+            echo "Lake not installed; skipping optional Lean build."
+          fi

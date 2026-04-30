@@ -15,9 +15,11 @@ Bad conclusions:
 
 Correct conclusions:
 
-- `valid_acyclic`: no modeled prediction-feedback cycle was found.
+- `valid_acyclic`: no modeled prediction-feedback cycle was found, with validity scope `no_modeled_prediction_feedback_only`.
 - `causal_paradox`: a modeled observation/prediction result controls the same execution it observes.
 - `unproved`: the question is semantically hard or outside the proof strength used.
 - `insufficient_info`: the structured artifact does not expose enough identity/effect data.
 
 CHC does not solve the classical Halting Problem and does not prove arbitrary termination.
+
+Production-style analyzers must not return `valid_acyclic` when execution, result, channel, prediction target, or temporal identity is ambiguous. They should return `insufficient_info` instead.

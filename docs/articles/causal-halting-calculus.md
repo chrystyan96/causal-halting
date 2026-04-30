@@ -1,3 +1,8 @@
+---
+layout: page
+title: Causal Halting Calculus
+---
+
 # Causal Halting: Diagonalization as Forbidden Prediction Feedback
 
 ## Abstract

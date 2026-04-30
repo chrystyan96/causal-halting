@@ -28,6 +28,28 @@ CAPABILITY_BOUNDARY = {
     "does_not_prove_arbitrary_termination": True,
     "does_not_solve_classical_halting": True,
 }
+VALIDITY_SCOPE = "no_modeled_prediction_feedback_only"
+
+
+def default_identity_resolution() -> dict[str, list[object]]:
+    return {
+        "resolved": [],
+        "ambiguous": [],
+        "missing": [],
+        "conflicts": [],
+        "assumptions": ["Mini-CHC and graph DSL identities are symbolic labels supplied by the artifact."],
+    }
+
+
+def default_theorem_coverage(chc_level: str) -> dict[str, object]:
+    return {
+        "chc_level": chc_level,
+        "mechanized_core": "CHC-0" if chc_level == "CHC-0" else "partial",
+        "claims": [
+            "finite modeled graph feedback detection",
+            "diagonal rejection for modeled CHC-0 feedback",
+        ],
+    }
 
 
 @dataclass(frozen=True)
@@ -806,6 +828,10 @@ def base_result(
         "effect_summary_details": effect_summary_details or {},
         "analysis_profile": analysis_profile(chc_level, fixed_point_status, effect_composition_status),
         "capability_boundary": dict(CAPABILITY_BOUNDARY),
+        "validity_scope": VALIDITY_SCOPE,
+        "identity_resolution": default_identity_resolution(),
+        "formal_status": "mechanized",
+        "theorem_coverage": default_theorem_coverage(chc_level),
         "explanation": explanation,
     }
 

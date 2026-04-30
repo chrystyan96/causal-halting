@@ -75,6 +75,8 @@ To use the CHC-0 lens for every relevant question in the current session, the us
    - CHC-5: `PredictionIR` for probabilistic/scored predictions.
    - If identity, timing, or effect data is missing, return `insufficient_info`.
    - `valid_acyclic` never means the system terminates or is safe in general.
+   - Treat `validity_scope: no_modeled_prediction_feedback_only` as mandatory: `valid_acyclic` only means no modeled prediction-feedback path was detected.
+   - Check `identity_resolution`; missing, ambiguous, or conflicting production identity should be `insufficient_info`.
 
 10. When a `causal_paradox` is found in an agent/workflow design, suggest a causal refactoring.
    - Move prediction results to an external orchestrator or controller.
@@ -135,7 +137,7 @@ CHC-0 does not decide all halting questions.
 
 Use `scripts/chc_check.py` for explicit graph DSL or Mini-CHC v2 artifacts. The checker uses Python standard library only and supports CHC-0/1/2 operational analysis.
 
-Use `scripts/chc_design_analyze.py` for explicit `DesignIR`, `scripts/chc_trace_check.py` for JSONL traces, `scripts/chc_process_check.py` for CHC-3 ProcessIR, `scripts/chc_temporal_check.py` for CHC-4 temporal traces, `scripts/chc_prediction_check.py` for CHC-5 PredictionIR, `scripts/chc_workflow_adapter.py` for generic workflow JSON, `scripts/chc_otel_adapter.py` for explicitly annotated OpenTelemetry JSON, `scripts/chc_langgraph_adapter.py` for structured LangGraph-style JSON, `scripts/chc_temporal_airflow_adapter.py` for structured Temporal/Airflow-style JSON, `scripts/chc_eval_design_ir.py` and `scripts/chc_eval_suite.py` for corpus fixture evaluation, `scripts/chc_repair.py` for causal repair reports, `scripts/chc_verify_repair.py` and `scripts/chc_certificate.py` for before/after trace verification and certificates, and `scripts/chc_report.py` for Markdown/Mermaid reports.
+Use `scripts/chc_design_analyze.py` for explicit `DesignIR`, `scripts/chc_trace_check.py` for JSONL traces, `scripts/chc_process_check.py` for CHC-3 ProcessIR, `scripts/chc_temporal_check.py` for CHC-4 temporal traces, `scripts/chc_prediction_check.py` for CHC-5 PredictionIR, `scripts/chc_identity_check.py` for identity-resolution metadata, `scripts/chc_theory_coverage.py` for Lean/theory coverage, `scripts/chc_workflow_adapter.py` for generic workflow JSON, `scripts/chc_otel_adapter.py` for explicitly annotated OpenTelemetry JSON, `scripts/chc_langgraph_adapter.py` for structured LangGraph-style JSON, `scripts/chc_temporal_airflow_adapter.py` for structured Temporal/Airflow-style JSON, `scripts/chc_eval_design_ir.py` and `scripts/chc_eval_suite.py` for corpus fixture evaluation, `scripts/chc_repair.py` for causal repair reports, `scripts/chc_verify_repair.py` and `scripts/chc_certificate.py` for before/after trace verification and certificates, and `scripts/chc_report.py` for Markdown/Mermaid reports.
 
 Run from the skill root:
 

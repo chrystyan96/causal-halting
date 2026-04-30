@@ -42,12 +42,65 @@ def parse_events(text: str) -> tuple[list[dict[str, Any]], list[str]]:
     return events, errors
 
 
-def temporal_order_status(events: list[dict[str, Any]]) -> str:
-    if any(event.get("happens_before") for event in events):
-        return "complete"
-    if all("timestamp" in event or "logical_clock" in event or "span_id" in event for event in events):
-        return "partial"
-    return "insufficient_info"
+def event_ref(event: dict[str, Any]) -> str:
+    return str(event.get("id") or event.get("span_id") or event.get("_index"))
+
+
+def build_happens_before(events: list[dict[str, Any]]) -> tuple[set[tuple[str, str]], list[dict[str, Any]], str]:
+    refs = {event_ref(event): event for event in events}
+    edges: set[tuple[str, str]] = set()
+    evidence: list[dict[str, Any]] = []
+
+    for event in events:
+        source = event_ref(event)
+        for target in event.get("happens_before") or []:
+            if str(target) in refs:
+                edges.add((source, str(target)))
+                evidence.append({"source": source, "target": str(target), "reason": "explicit_happens_before"})
+        parent = event.get("parent_id")
+        if isinstance(parent, str) and parent in refs:
+            edges.add((parent, source))
+            evidence.append({"source": parent, "target": source, "reason": "span_parent"})
+
+    logical_events = [event for event in events if "logical_clock" in event]
+    if logical_events and len(logical_events) == len(events):
+        ordered = sorted(events, key=lambda item: (str(item.get("trace_id", "")), item.get("logical_clock"), int(item.get("_index", 0))))
+        for left, right in zip(ordered, ordered[1:]):
+            if left.get("trace_id") == right.get("trace_id"):
+                edges.add((event_ref(left), event_ref(right)))
+                evidence.append({"source": event_ref(left), "target": event_ref(right), "reason": "logical_clock"})
+
+    timestamp_events = [event for event in events if "timestamp" in event]
+    if timestamp_events and len(timestamp_events) == len(events):
+        traces = {event.get("trace_id", "default") for event in events}
+        if len(traces) == 1:
+            ordered = sorted(events, key=lambda item: (str(item.get("timestamp")), int(item.get("_index", 0))))
+            for left, right in zip(ordered, ordered[1:]):
+                edges.add((event_ref(left), event_ref(right)))
+                evidence.append({"source": event_ref(left), "target": event_ref(right), "reason": "timestamp_order"})
+
+    if any(reason["reason"] == "explicit_happens_before" for reason in evidence):
+        status = "complete"
+    elif edges:
+        status = "partial"
+    else:
+        status = "insufficient_info"
+    return transitive_closure(edges), evidence, status
+
+
+def transitive_closure(edges: set[tuple[str, str]]) -> set[tuple[str, str]]:
+    closure = set(edges)
+    changed = True
+    while changed:
+        changed = False
+        next_edges = set(closure)
+        for left, middle in closure:
+            for middle2, right in closure:
+                if middle == middle2 and (left, right) not in next_edges:
+                    next_edges.add((left, right))
+                    changed = True
+        closure = next_edges
+    return closure
 
 
 def analyze_temporal_text(text: str) -> dict[str, Any]:
@@ -59,24 +112,44 @@ def analyze_temporal_text(text: str) -> dict[str, Any]:
             "temporal_order_status": "insufficient_info",
             "happens_before_path": [],
             "semantic_status": "not_analyzed",
+            "validity_scope": "no_modeled_prediction_feedback_only",
+            "identity_resolution": {
+                "resolved": [],
+                "ambiguous": [],
+                "missing": [],
+                "conflicts": [],
+                "assumptions": [],
+            },
+            "formal_status": "mechanized",
+            "theorem_coverage": {
+                "chc_level": "CHC-4",
+                "mechanized_core": "mechanized",
+                "claims": ["temporal parser rejected malformed input"],
+            },
             "capability_boundary": {
                 "does_not_prove_arbitrary_termination": True,
                 "does_not_solve_classical_halting": True,
             },
             "explanation": "; ".join(errors),
         }
-    status = temporal_order_status(events)
+    closure, hb_evidence, status = build_happens_before(events)
     checker = load_trace_checker()
     base = checker.analyze_events(events)
     output = {
         **base,
         "chc_level": "CHC-4",
         "temporal_order_status": status,
-        "happens_before_path": [
-            {"event": event.get("_index"), "happens_before": event.get("happens_before")}
-            for event in events
-            if event.get("happens_before")
-        ],
+        "happens_before_path": sorted(
+            [{"source": source, "target": target} for source, target in closure],
+            key=lambda item: (item["source"], item["target"]),
+        ),
+        "happens_before_evidence": hb_evidence,
+        "formal_status": "mechanized",
+        "theorem_coverage": {
+            "chc_level": "CHC-4",
+            "mechanized_core": "mechanized",
+            "claims": ["happens-before feedback is rejected for modeled temporal traces"],
+        },
     }
     if status == "insufficient_info" and base["classification"] == "valid_acyclic":
         output["classification"] = "insufficient_info"

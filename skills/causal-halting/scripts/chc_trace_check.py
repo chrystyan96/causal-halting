@@ -16,11 +16,52 @@ CAPABILITY_BOUNDARY = {
     "does_not_prove_arbitrary_termination": True,
     "does_not_solve_classical_halting": True,
 }
+VALIDITY_SCOPE = "no_modeled_prediction_feedback_only"
+
+
+def identity_resolution(
+    valid_paths: list[dict[str, Any]],
+    uncertain_paths: list[dict[str, Any]],
+    feedback_paths: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    return {
+        "resolved": [
+            {
+                "result_id": path.get("result_id"),
+                "relation": path.get("relation"),
+                "target_exec_id": path.get("target_exec_id"),
+                "consumer_exec_id": path.get("consumer_exec_id"),
+            }
+            for path in valid_paths + feedback_paths
+        ],
+        "ambiguous": [path for path in uncertain_paths if path.get("relation") in {"unknown_identity"}],
+        "missing": [path for path in uncertain_paths if path.get("relation") != "unknown_identity"],
+        "conflicts": [],
+        "assumptions": ["Trace event IDs are treated as authoritative; unknown identity is not accepted as acyclic."],
+    }
 
 
 def add_boundary(result: dict[str, Any]) -> dict[str, Any]:
     result.setdefault("capability_boundary", dict(CAPABILITY_BOUNDARY))
     result.setdefault("analysis_profile", "trace_identity_limited")
+    result.setdefault("validity_scope", VALIDITY_SCOPE)
+    result.setdefault(
+        "identity_resolution",
+        identity_resolution(
+            result.get("valid_paths", []),
+            result.get("uncertain_paths", []),
+            result.get("feedback_paths", []),
+        ),
+    )
+    result.setdefault("formal_status", "specified")
+    result.setdefault(
+        "theorem_coverage",
+        {
+            "chc_level": "Trace",
+            "mechanized_core": "not_mechanized",
+            "claims": ["same-execution pre-end consumption detection", "indirect controller feedback detection"],
+        },
+    )
     return result
 
 

@@ -218,7 +218,7 @@ The supervisor observes a separate worker. The result does not feed back into th
 
 ## Design, Trace, And Repair Workflows
 
-The portable skill also includes the v3.0 analysis scripts:
+The portable skill also includes the v3.1 analysis scripts:
 
 ```text
 chc_design_analyze.py  analyze explicit DesignIR JSON
@@ -236,9 +236,15 @@ chc_certificate.py     emit machine-readable repair certificates
 chc_process_check.py   analyze CHC-3 ProcessIR
 chc_temporal_check.py  analyze CHC-4 temporal trace JSONL
 chc_prediction_check.py analyze CHC-5 PredictionIR
+chc_identity_check.py  validate identity-resolution metadata
+chc_theory_coverage.py summarize Lean/theorem coverage
 chc_eval_suite.py      summarize corpus coverage and deterministic checks
 sync_skill_package.py  compare/copy portable skill package
 ```
+
+Every analyzer output carries `validity_scope: no_modeled_prediction_feedback_only`.
+That scope means only that no modeled prediction-feedback cycle was detected;
+it does not prove termination, general safety, correctness, or trace completeness.
 
 Trace schema:
 

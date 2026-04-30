@@ -58,9 +58,9 @@ and then changes itself because of the answer
 
 Causal Halting gives a way to notice that boundary before it becomes an architectural habit.
 
-## V3.0 Operational Core
+## V3.1 Operational Core
 
-The v3.0 package supports five operational layers:
+The v3.1 package supports six operational layers with stricter identity and scope metadata:
 
 ```text
 CHC-0  finite first-order graph generation
@@ -73,6 +73,16 @@ CHC-5  probabilistic PredictionResult feedback
 
 If recursion summaries do not converge or higher-order effects are missing, the checker returns `insufficient_info` instead of accepting an unsafe program.
 If process identity, temporal order, or prediction target identity is unclear, the structured analyzers also return `insufficient_info`.
+Every analyzer output includes:
+
+```text
+validity_scope      no_modeled_prediction_feedback_only
+identity_resolution resolved/ambiguous/missing/conflicts/assumptions
+formal_status       operational/specification/mechanized status
+theorem_coverage    core theorem claims covered by the artifact
+```
+
+`valid_acyclic` never means termination, general safety, correctness, or absence of unmodeled feedback.
 
 ## Practical Verification Pipeline
 
@@ -135,10 +145,12 @@ See [case studies](./case-studies.md).
 ## Project Links
 
 - Repository: [github.com/chrystyan96/causal-halting](https://github.com/chrystyan96/causal-halting)
+- Formal note: [Causal Halting Calculus](./articles/causal-halting-calculus.md)
 - Technical note: [CHC-0 technical overview](./chc-0.md)
 - CHC-1/2: [recursive summaries and higher-order effects](./chc-1-2.md)
 - CHC-1: [effect summaries](./chc-1.md)
 - CHC-2: [higher-order effects](./chc-2.md)
+- CHC-3/4/5: [formal roadmap and operational scope](./formal-roadmap.md)
 - Conservatism: [what the checker rejects conservatively](./conservatism.md)
 - Execution identity: [same, future, resumed, retried, forked, unknown](./execution-identity.md)
 - Misuse guide: [what `valid_acyclic` does not mean](./misuse.md)

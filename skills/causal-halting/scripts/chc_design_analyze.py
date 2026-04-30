@@ -20,6 +20,7 @@ CAPABILITY_BOUNDARY = {
     "does_not_prove_arbitrary_termination": True,
     "does_not_solve_classical_halting": True,
 }
+VALIDITY_SCOPE = "no_modeled_prediction_feedback_only"
 ALLOWED_TIMINGS = {
     "during_observed_execution",
     "after_observed_execution",
@@ -78,6 +79,26 @@ def base_roles() -> dict[str, list[str]]:
 def add_boundary(result: dict[str, Any]) -> dict[str, Any]:
     result.setdefault("capability_boundary", dict(CAPABILITY_BOUNDARY))
     result.setdefault("analysis_profile", "complete_for_chc0")
+    result.setdefault("validity_scope", VALIDITY_SCOPE)
+    result.setdefault(
+        "identity_resolution",
+        {
+            "resolved": [],
+            "ambiguous": [],
+            "missing": [],
+            "conflicts": [],
+            "assumptions": ["DesignIR identity is trusted only when explicit IDs reference known objects."],
+        },
+    )
+    result.setdefault("formal_status", "specified")
+    result.setdefault(
+        "theorem_coverage",
+        {
+            "chc_level": "DesignIR",
+            "mechanized_core": "not_mechanized",
+            "claims": ["structured DesignIR feedback classification"],
+        },
+    )
     return result
 
 
@@ -196,6 +217,13 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
     observations = {observation["result"]: observation for observation in data["observations"]}
     graph: list[str] = []
     uncertain_edges = list(data.get("uncertain", []))
+    identity_resolution = {
+        "resolved": [],
+        "ambiguous": [],
+        "missing": [],
+        "conflicts": [],
+        "assumptions": [],
+    }
     feedback: list[dict[str, Any]] = []
     proof_obligations: list[dict[str, Any]] = []
     roles = {
@@ -211,6 +239,14 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
     for observation in data["observations"]:
         observed = executions[observation["target_exec"]]
         graph.append(f"{exec_node(observed)} -> {result_node(observed)}")
+        identity_resolution["resolved"].append(
+            {
+                "kind": "observation_target",
+                "observation_id": observation["id"],
+                "target_exec": observation["target_exec"],
+                "result": observation["result"],
+            }
+        )
 
     for control in data["controls"]:
         observation = observations[control["result"]]
@@ -221,6 +257,14 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
             consumer = control.get("consumer")
             if timing == "external_controller" and isinstance(consumer, str):
                 graph.append(f"{result_node(observed)} -> External({safe_label(consumer, 'Controller')})")
+                identity_resolution["resolved"].append(
+                    {
+                        "kind": "external_control_boundary",
+                        "control_id": control["id"],
+                        "result": control["result"],
+                        "consumer": consumer,
+                    }
+                )
             else:
                 uncertain_edges.append(
                     {
@@ -229,9 +273,21 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
                         "reason": "Control target is not specified.",
                     }
                 )
+                identity_resolution["missing"].append(
+                    {"kind": "control_target", "control_id": control.get("id"), "result": control.get("result")}
+                )
             continue
         controlled = executions[target_exec]
         graph.append(f"{result_node(observed)} -> {exec_node(controlled)}")
+        identity_resolution["resolved"].append(
+            {
+                "kind": "control_target",
+                "control_id": control["id"],
+                "result": control["result"],
+                "target_exec": target_exec,
+                "timing": timing,
+            }
+        )
         if timing == "unknown":
             uncertain_edges.append(
                 {
@@ -239,6 +295,9 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
                     "confidence": 0.5,
                     "reason": "Control timing is unknown.",
                 }
+            )
+            identity_resolution["ambiguous"].append(
+                {"kind": "control_timing", "control_id": control["id"], "result": control["result"]}
             )
         if target_exec == observation["target_exec"] and timing == "during_observed_execution":
             feedback.append(
@@ -259,6 +318,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
             "uncertain_edges": uncertain_edges,
             "repair": repair_for_self_feedback(),
             "proof_obligations": proof_obligations,
+            "identity_resolution": identity_resolution,
             "explanation": "A prediction or observation result controls the same execution it observes.",
         })
 
@@ -271,6 +331,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
             "uncertain_edges": uncertain_edges,
             "repair": ["Specify the consumer execution or external boundary for each observation result."],
             "proof_obligations": [],
+            "identity_resolution": identity_resolution,
             "explanation": "The DesignIR leaves at least one result consumer unspecified.",
         })
 
@@ -282,6 +343,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
         "uncertain_edges": [],
         "repair": [],
         "proof_obligations": [],
+        "identity_resolution": identity_resolution,
         "explanation": "No DesignIR control edge routes an observation result back into its observed execution.",
     })
 

@@ -8,6 +8,7 @@
       "result_id": "risk-1",
       "kind": "failure_risk",
       "target_exec": "run-1",
+      "prediction_scope": "current_execution",
       "confidence": 0.82,
       "semantics": "probabilistic"
     }

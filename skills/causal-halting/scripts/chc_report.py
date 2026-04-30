@@ -53,13 +53,26 @@ def extract_edges(data: dict[str, Any]) -> tuple[list[str], list[str]]:
 def render_markdown(data: dict[str, Any]) -> str:
     graph, repair_graph = extract_edges(data)
     classification = data.get("classification", data.get("verification", "unknown"))
+    validity_scope = data.get("validity_scope", "no_modeled_prediction_feedback_only")
     lines = [
         "# Causal Halting Report",
         "",
         f"**Classification:** `{classification}`",
+        f"**Validity scope:** `{validity_scope}`",
         "",
-        "CHC does not solve classical halting. This report only analyzes structured prediction-feedback paths.",
+        (
+            "CHC does not solve classical halting. `valid_acyclic` only means no modeled "
+            "prediction-feedback cycle was detected; it does not prove termination, general "
+            "safety, correctness, or absence of unmodeled feedback."
+        ),
     ]
+    if data.get("identity_resolution"):
+        identity = data["identity_resolution"]
+        lines.append(
+            f"**Identity resolution:** resolved={len(identity.get('resolved', []))}, "
+            f"ambiguous={len(identity.get('ambiguous', []))}, "
+            f"missing={len(identity.get('missing', []))}, conflicts={len(identity.get('conflicts', []))}"
+        )
     if data.get("semantic_status"):
         lines.append(f"**Semantic status:** `{data['semantic_status']}`")
     if data.get("repair_status"):
@@ -97,6 +110,8 @@ def render_json(data: dict[str, Any]) -> str:
             "graph": extract_edges(data)[0],
             "repair_graph": extract_edges(data)[1],
             "proof_obligations": data.get("proof_obligations", []),
+            "validity_scope": data.get("validity_scope", "no_modeled_prediction_feedback_only"),
+            "identity_resolution": data.get("identity_resolution", {}),
             "capability_boundary": data.get(
                 "capability_boundary",
                 {

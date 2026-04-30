@@ -2,7 +2,7 @@
 
 A Codex skill, low-cost prompt guard, operational CHC-0/CHC-1/CHC-2 checker, CHC-3 process/session analyzer, CHC-4 temporal trace analyzer, CHC-5 probabilistic prediction analyzer, DesignIR verifier, trace analyzer, repair certificates, and report workflow for detecting prediction-feedback loops in halting-style reasoning and agent architectures.
 
-`causal-halting` packages four things:
+`causal-halting` packages seven things:
 
 1. a Codex skill for applying Causal Halting Calculus (CHC-0/1/2);
 2. a formal reference note for the CHC-0 rules and theorem boundary;
@@ -60,7 +60,15 @@ This project does not:
 
 ## What `valid_acyclic` Does Not Mean
 
-`valid_acyclic` only means no modeled prediction-feedback cycle was detected in the structured artifact. It does not mean:
+`valid_acyclic` only means no modeled prediction-feedback cycle was detected in the structured artifact. Analyzer output carries this scope explicitly:
+
+```json
+{
+  "validity_scope": "no_modeled_prediction_feedback_only"
+}
+```
+
+It does not mean:
 
 - the program terminates;
 - the system is safe;
@@ -551,7 +559,7 @@ The run asks whether this same run halts and then uses the answer to control its
 
 ## From Hygiene To Verification
 
-Version 3.0 extends the project beyond a prompt-level warning label. It keeps the operational CHC-0/1/2 checker and adds CHC-3/4/5 structured analysis plus an explicit causal verification pipeline:
+Version 3.1 extends the project beyond a prompt-level warning label. It keeps the operational CHC-0/1/2 checker and upgrades CHC-3/4/5 with strict identity handling, validity-scope metadata, and Lean-backed core structural rules:
 
 ```text
 /causal-halting analyze-design <design-ir-json-file>
@@ -815,7 +823,7 @@ python scripts/chc_prediction_check.py examples/prediction-self-risk.prediction-
 python scripts/sync_skill_package.py --check
 ```
 
-Version 3.0 adds trust infrastructure: capability-boundary metadata, analysis profiles, DesignIR schema validation, repair certificates, CHC-3/4/5 structured analyzers, a Lean proof-track skeleton, a 50-case DesignIR evaluation corpus, and real case-study fixtures.
+Version 3.1 adds trust infrastructure: capability-boundary metadata, mandatory validity-scope metadata, identity-resolution reports, analysis profiles, DesignIR schema validation, repair certificates, CHC-3/4/5 structured analyzers, a Lean proof track for core CHC-0/1/2/3/4/5 invariants, a 50-case DesignIR evaluation corpus, and real case-study fixtures.
 
 Each corpus case separates:
 
@@ -1298,8 +1306,8 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 
 ## Limitations
 
-- The checker analyzes explicit structured artifacts only: graph DSL, Mini-CHC v2 syntax, DesignIR, and trace JSONL.
-- The checker detects CHC-0/1/2 causal graph failures only; it does not prove arbitrary termination or divergence.
+- The checker analyzes explicit structured artifacts only: graph DSL, Mini-CHC v2 syntax, DesignIR, ProcessIR, temporal trace JSONL, PredictionIR, and adapter output.
+- The checker detects modeled prediction-feedback failures; it does not prove arbitrary termination or divergence.
 - The checker does not perform semantic halting analysis.
 - The design analyzer is conservative; natural-language input must be converted to explicit `DesignIR` by the LLM, and only the `DesignIR` classification is deterministic.
 - The trace analyzer is deterministic, but only for traces that follow the documented event schema.
@@ -1322,16 +1330,16 @@ Do not submit to curated/catalog paths until the checker and examples have been 
 - Formal track: CHC-0 -> CHC-1 -> CHC-2 -> CHC-3 -> CHC-4 -> CHC-5 -> CHC-Meta, without claiming to decide classical halting.
 - Stable interface docs: see `docs/interfaces.md`.
 - Formal roadmap: see `docs/formal-roadmap.md`.
-- CHC-3: process/session types for richer supervisor-worker protocols.
-- CHC-4: temporal/distributed trace semantics beyond the current JSONL event model.
-- CHC-5: probabilistic `PredictionResult` beyond binary halting observations.
+- CHC-3: deeper process/session protocol coverage and richer channel/session adapters.
+- CHC-4: stronger distributed trace semantics and OpenTelemetry identity resolution.
+- CHC-5: broader `PredictionResult` taxonomies for risk, confidence, budget, and quality controls.
 - Codex-style session traces when available.
 - Richer OpenTelemetry mappings for production span conventions beyond explicit `chc.*` attributes.
 - Interactive graph visualization for inferred and trace-derived E/R graphs.
 - Replace illustrative evaluation fixtures with live model comparison runs across several models.
 - Benchmark corpus with 50-100 agent-loop prompts/designs and expected classifications.
 - False-positive audit for normal monitoring, retries, and planning.
-- Proof assistant encoding of core CHC-0 rules in Lean or Coq.
+- Broader proof assistant coverage beyond the current Lean core invariants.
 
 ## License
 

@@ -31,6 +31,10 @@ higher_order_effects
 effect_composition_status
 analysis_profile
 capability_boundary
+validity_scope
+identity_resolution
+formal_status
+theorem_coverage
 ```
 
 `insufficient_info` is used when a recursive summary does not converge or a higher-order effect is not explicit.
@@ -113,13 +117,16 @@ Every report must state that CHC does not solve classical halting.
 
 ## Future Interfaces
 
-V3.0 adds these structured interfaces:
+V3.1 treats these structured interfaces as first-class analyzer inputs:
 
 ```text
 ProcessIR
 TemporalTraceIR
 ProofCertificate
 PredictionIR
+IdentityResolutionReport
+ValidityScope
+TheoremCoverage
 ```
 
 JSON schemas are maintained under `schemas/`:
@@ -132,6 +139,37 @@ process-ir.schema.json
 temporal-trace.schema.json
 prediction-result.schema.json
 repair-certificate.schema.json
+identity-resolution.schema.json
+validity-scope.schema.json
+theorem-coverage.schema.json
 ```
 
 The rule remains fixed: scripts verify structured causal artifacts; they do not classify natural language.
+
+## Validity Scope
+
+All analyzer outputs must include:
+
+```json
+{
+  "validity_scope": "no_modeled_prediction_feedback_only"
+}
+```
+
+This field is deliberately narrow. It means the modeled artifact did not expose a prediction-feedback cycle. It does not prove termination, correctness, semantic safety, or completeness of the trace/IR.
+
+## Identity Resolution
+
+Production results are only useful when execution/result/control identities are explicit. The shared identity report is:
+
+```json
+{
+  "resolved": [],
+  "ambiguous": [],
+  "missing": [],
+  "conflicts": [],
+  "assumptions": []
+}
+```
+
+For production-style analyzers, ambiguous, missing, or conflicting identity evidence must produce `insufficient_info`, not `valid_acyclic`.
