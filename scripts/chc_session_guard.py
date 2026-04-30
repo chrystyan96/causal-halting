@@ -233,12 +233,13 @@ def analyze_design(root: Path, target: str | None) -> dict[str, Any]:
     chc_design = load_script_module("chc_design_analyze")
     text = read_target_or_literal(root, target)
     result = chc_design.analyze_design(text)
+    message = "Analyzed DesignIR." if result["classification"] != "needs_design_ir" else "DesignIR required before analysis."
     return {
         "mode": "analyze-design",
         "enabled": read_project_enabled(root),
         "scope": "project",
         "state_path": str(project_state_path(root)),
-        "message": "Analyzed design text.",
+        "message": message,
         "classification": result["classification"],
         "analysis_output": chc_design.format_human(result),
         "analysis_json": result,

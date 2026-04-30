@@ -131,7 +131,7 @@ class CausalHaltingSessionGuardTests(unittest.TestCase):
         self.assertEqual(result["mode"], "check")
         self.assertIn("File not found", result["message"])
 
-    def test_analyze_design_command_reports_inferred_paradox(self):
+    def test_analyze_design_command_requires_design_ir_for_prose(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = chc_session_guard.command_result(
                 Path(tmp),
@@ -140,10 +140,32 @@ class CausalHaltingSessionGuardTests(unittest.TestCase):
             )
 
         self.assertEqual(result["mode"], "analyze-design")
+        self.assertEqual(result["classification"], "needs_design_ir")
+        self.assertIn("classification: needs_design_ir", result["analysis_output"])
+
+    def test_analyze_design_command_accepts_design_ir_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "design-ir.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
+                        "observations": [
+                            {"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}
+                        ],
+                        "controls": [{"result": "r-1", "target_exec": "run-1", "action": "change_strategy"}],
+                        "uncertain": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = chc_session_guard.command_result(Path(tmp), "analyze-design", str(path))
+
+        self.assertEqual(result["mode"], "analyze-design")
         self.assertEqual(result["classification"], "causal_paradox")
         self.assertIn("classification: causal_paradox", result["analysis_output"])
 
-    def test_cli_analyze_design_accepts_text_with_spaces(self):
+    def test_cli_analyze_design_text_with_spaces_returns_needs_design_ir(self):
         with tempfile.TemporaryDirectory() as tmp:
             with redirect_stdout(io.StringIO()):
                 exit_code = chc_session_guard.main(

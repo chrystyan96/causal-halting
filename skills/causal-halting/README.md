@@ -32,6 +32,7 @@ causal-halting/
     openai.yaml
   references/
     causal-halting-calculus.md
+    design-ir-extraction.md
   scripts/
     chc_check.py
     chc_design_analyze.py
@@ -49,6 +50,7 @@ causal-halting/
     qe-valid-acyclic.chc
     safe-supervisor.graph
     self-prediction.analysis.json
+    self-prediction.design-ir.json
     self-prediction.trace.jsonl
 ```
 
@@ -106,7 +108,7 @@ python scripts/chc_check.py examples/diagonal.graph
 python scripts/chc_check.py --format json examples/diagonal.chc
 python scripts/chc_check.py examples/qe-valid-acyclic.chc
 python scripts/chc_check.py examples/safe-supervisor.graph
-python scripts/chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
+python scripts/chc_design_analyze.py examples/self-prediction.design-ir.json
 python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
 python scripts/chc_repair.py examples/self-prediction.analysis.json
 python scripts/chc_workflow_adapter.py examples/generic-workflow.json
@@ -178,10 +180,10 @@ The supervisor observes a separate worker. The result does not feed back into th
 
 ## Design, Trace, And Repair Workflows
 
-The portable skill also includes the v1.5 analysis scripts:
+The portable skill also includes the v1.6 analysis scripts:
 
 ```text
-chc_design_analyze.py  infer DesignIR from text or analyze explicit DesignIR JSON
+chc_design_analyze.py  analyze explicit DesignIR JSON
 chc_design_schema.py   validate design-analysis JSON
 chc_trace_check.py     deterministically analyze JSONL execution traces
 chc_repair.py          generate repair reports and proof obligations
@@ -200,12 +202,20 @@ Trace schema:
 
 Repair reports move same-run prediction feedback to a separate orchestrator/future-run boundary and emit the proof obligation that the observed execution must not consume its own prediction result before it ends.
 
+## No Lexical Analysis
+
+Natural language is interpreted by the LLM into `DesignIR`. The bundled scripts do not classify prose and do not use keyword lists, regex patterns, or language-specific phrases for design understanding.
+
+If prose is passed directly to `chc_design_analyze.py`, it returns `needs_design_ir`.
+
+See `references/design-ir-extraction.md` for the semantic extraction contract.
+
 ## Limits
 
 - Does not solve the classical Halting Problem.
 - Does not prove arbitrary termination or divergence.
 - Checks explicit CHC-0 graph DSL and mini-CHC artifacts only.
-- Infers `DesignIR` conservatively from text; deterministic classification starts from `DesignIR`.
+- Natural-language designs must be interpreted into `DesignIR` by the LLM before script analysis.
 - Deterministically checks traces only when they follow the documented JSONL schema.
 - Converts only the documented generic workflow JSON format; framework adapters are future work.
 - Produces causal refactoring guidance, not arbitrary code patches.

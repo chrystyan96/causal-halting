@@ -15,6 +15,7 @@ ALLOWED_CLASSIFICATIONS = {
     "valid_acyclic",
     "unproved",
     "insufficient_info",
+    "needs_design_ir",
     "parse_error",
 }
 
@@ -27,8 +28,8 @@ def validate_design_analysis(data: dict[str, Any]) -> list[str]:
         isinstance(edge, str) for edge in data.get("inferred_graph", [])
     ):
         errors.append("inferred_graph must be a list of strings")
-    if "design_ir" in data and not isinstance(data.get("design_ir"), dict):
-        errors.append("design_ir must be an object when present")
+    if "design_ir" in data and data.get("design_ir") is not None and not isinstance(data.get("design_ir"), dict):
+        errors.append("design_ir must be an object or null when present")
     roles = data.get("roles")
     if not isinstance(roles, dict):
         errors.append("roles must be an object")

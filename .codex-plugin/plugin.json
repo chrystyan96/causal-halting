@@ -1,7 +1,7 @@
 {
   "name": "causal-halting",
-  "version": "1.5.0",
-  "description": "A Codex skill, prompt guard, checker, DesignIR analyzer, trace analyzer, workflow adapter, and repair verifier for prediction-feedback loops.",
+  "version": "1.6.0",
+  "description": "A Codex skill, prompt guard, DesignIR verifier, trace analyzer, workflow adapter, and repair verifier for prediction-feedback loops.",
   "author": {
     "name": "Chrystyan Byrnes",
     "url": "https://github.com/chrystyan96/causal-halting"
@@ -23,7 +23,7 @@
   "interface": {
     "displayName": "Causal Halting",
     "shortDescription": "Analyze and refactor prediction-feedback loops in agent systems.",
-    "longDescription": "Causal Halting packages a Codex skill, low-cost UserPromptSubmit context guard, CHC-0 reference notes, explicit graph checker, DesignIR-based design analyzer, deterministic trace analyzer, workflow adapter, repair workflow, and before/after repair verifier for separating structural prediction-feedback cycles from ordinary semantic undecidability.",
+    "longDescription": "Causal Halting packages a Codex skill, low-cost UserPromptSubmit context guard, CHC-0 reference notes, explicit graph checker, DesignIR-only verifier, deterministic trace analyzer, workflow adapter, repair workflow, and before/after repair verifier for separating structural prediction-feedback cycles from ordinary semantic undecidability. Natural language must be interpreted by the LLM into DesignIR before deterministic analysis.",
     "developerName": "Chrystyan Byrnes",
     "category": "Developer Tools",
     "capabilities": [

@@ -27,42 +27,40 @@ chc_verify_repair = load_script("chc_verify_repair")
 
 
 class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
-    def test_text_design_current_run_self_prediction_is_causal_paradox(self):
+    def test_prose_input_requires_design_ir(self):
         result = chc_design_analyze.analyze_design(
-            "The agent asks a supervisor whether the current execution will finish. "
-            "If the supervisor says no, the same execution changes strategy."
+            "The active worker receives an evaluator's forecast and revises its own route."
         )
 
-        self.assertEqual(result["classification"], "causal_paradox")
-        self.assertIn("R(AgentRun,input) -> E(AgentRun,input)", result["inferred_graph"])
-        self.assertTrue(result["repair"])
+        self.assertEqual(result["classification"], "needs_design_ir")
+        self.assertEqual(result["inferred_graph"], [])
 
-    def test_portuguese_current_execution_text_is_detected(self):
+    def test_portuguese_prose_input_requires_design_ir(self):
         result = chc_design_analyze.analyze_design(
-            "Meu sistema muda de estrategia quando descobre que sua execução atual nao vai concluir."
+            "O agente em execucao recebe uma avaliacao sobre sua propria rodada e muda o plano."
         )
 
-        self.assertEqual(result["classification"], "causal_paradox")
+        self.assertEqual(result["classification"], "needs_design_ir")
 
-    def test_text_design_post_run_supervisor_audit_is_valid_acyclic(self):
+    def test_spanish_prose_input_requires_design_ir(self):
         result = chc_design_analyze.analyze_design(
-            "A supervisor monitors worker logs after completion and schedules the next run."
+            "El proceso activo recibe una evaluacion de esa misma ejecucion y cambia su ruta."
         )
 
-        self.assertEqual(result["classification"], "valid_acyclic")
-        self.assertIn("R(AgentRun,input) -> E(NextAgentRun,input)", result["inferred_graph"])
-
-    def test_ambiguous_design_returns_insufficient_info(self):
-        result = chc_design_analyze.analyze_design(
-            "A supervisor predicts whether the worker will finish and uses the result."
-        )
-
-        self.assertEqual(result["classification"], "insufficient_info")
-        self.assertTrue(result["uncertain_edges"])
+        self.assertEqual(result["classification"], "needs_design_ir")
 
     def test_design_schema_accepts_valid_design_analysis(self):
         result = chc_design_analyze.analyze_design(
-            "The current run changes strategy when a monitor predicts it will not complete."
+            json.dumps(
+                {
+                    "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
+                    "observations": [
+                        {"id": "obs-1", "observer": "Supervisor", "target_exec": "run-1", "result": "r-1"}
+                    ],
+                    "controls": [{"result": "r-1", "target_exec": "run-1", "action": "change_strategy"}],
+                    "uncertain": [],
+                }
+            )
         )
 
         self.assertEqual(chc_design_schema.validate_design_analysis(result), [])
@@ -83,6 +81,22 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
 
         self.assertEqual(result["classification"], "causal_paradox")
         self.assertEqual(result["design_ir"]["controls"][0]["target_exec"], "run-1")
+
+    def test_non_keyword_design_ir_causal_paradox(self):
+        result = chc_design_analyze.analyze_design(
+            json.dumps(
+                {
+                    "executions": [{"id": "run-1", "program": "Worker", "input": "task"}],
+                    "observations": [
+                        {"id": "obs-1", "observer": "Evaluator", "target_exec": "run-1", "result": "r-1"}
+                    ],
+                    "controls": [{"result": "r-1", "target_exec": "run-1", "action": "revise_route"}],
+                    "uncertain": [],
+                }
+            )
+        )
+
+        self.assertEqual(result["classification"], "causal_paradox")
 
     def test_design_ir_future_run_is_valid_acyclic(self):
         result = chc_design_analyze.analyze_design(
@@ -118,6 +132,15 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
         )
 
         self.assertEqual(result["classification"], "insufficient_info")
+
+    def test_no_lexical_pattern_constants_remain_in_design_analyzer(self):
+        source = (ROOT / "scripts" / "chc_design_analyze.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("OBSERVATION_PATTERNS", source)
+        self.assertNotIn("SELF_EXEC_PATTERNS", source)
+        self.assertNotIn("CONTROL_PATTERNS", source)
+        self.assertNotIn("SAFE_BOUNDARY_PATTERNS", source)
+        self.assertNotIn("import re", source)
 
     def test_trace_same_exec_consume_before_end_is_causal_paradox(self):
         trace = "\n".join(

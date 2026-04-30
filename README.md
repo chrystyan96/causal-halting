@@ -1,13 +1,13 @@
 # Causal Halting
 
-A Codex skill, low-cost prompt guard, experimental checker, trace analyzer, and repair workflow for detecting prediction-feedback loops in halting-style reasoning and agent architectures.
+A Codex skill, low-cost prompt guard, DesignIR verifier, trace analyzer, and repair workflow for detecting prediction-feedback loops in halting-style reasoning and agent architectures.
 
 `causal-halting` packages four things:
 
 1. a Codex skill for applying Causal Halting Calculus (CHC-0);
 2. a formal reference note for the CHC-0 rules and theorems;
 3. a small Python checker for CHC-0 causal graphs;
-4. explicit design and trace analyzers for agent/workflow systems;
+4. a DesignIR verifier and trace analyzer for agent/workflow systems;
 5. a causal repair workflow that proposes safer execution boundaries;
 6. a low-cost background prompt guard that lets the main LLM detect CHC-0 cases from causal structure, not keyword matching.
 
@@ -143,9 +143,11 @@ causal-halting/
         qe-valid-acyclic.chc
         safe-supervisor.graph
         self-prediction.analysis.json
+        self-prediction.design-ir.json
         self-prediction.trace.jsonl
       references/
         causal-halting-calculus.md
+        design-ir-extraction.md
       scripts/
         chc_check.py
         chc_design_analyze.py
@@ -173,6 +175,7 @@ causal-halting/
     qe-valid-acyclic.chc
     safe-supervisor.graph
     self-prediction.analysis.json
+    self-prediction.design-ir.json
     self-prediction.trace.jsonl
   tests/
     test_chc_check.py
@@ -224,7 +227,7 @@ The checker uses Python standard library only.
 cd causal-halting
 python scripts/chc_check.py examples/diagonal.chc
 python scripts/chc_check.py --format json examples/diagonal.graph
-python scripts/chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
+python scripts/chc_design_analyze.py examples/self-prediction.design-ir.json
 python scripts/chc_trace_check.py examples/self-prediction.trace.jsonl
 python scripts/chc_repair.py examples/self-prediction.analysis.json
 python scripts/chc_workflow_adapter.py examples/generic-workflow.json
@@ -237,7 +240,7 @@ The portable skill package also includes the checker:
 cd skills\causal-halting
 python scripts\chc_check.py examples\diagonal.chc
 python scripts\chc_check.py --format json examples\diagonal.graph
-python scripts\chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
+python scripts\chc_design_analyze.py examples\self-prediction.design-ir.json
 python scripts\chc_trace_check.py examples\self-prediction.trace.jsonl
 python scripts\chc_repair.py examples\self-prediction.analysis.json
 python scripts\chc_workflow_adapter.py examples\generic-workflow.json
@@ -472,11 +475,13 @@ extract DesignIR -> classify deterministically -> verify trace -> propose repair
 
 ### Design Analysis
 
-Use `analyze-design` when the input is a natural-language design sketch or explicit `DesignIR` JSON:
+Use `analyze-design` only with explicit `DesignIR` JSON:
 
 ```powershell
-python scripts/chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
+python scripts/chc_design_analyze.py examples/self-prediction.design-ir.json
 ```
+
+Natural language must be interpreted by the LLM into `DesignIR` before this script runs. If prose is passed directly to the script, it returns `needs_design_ir`.
 
 Example output:
 
@@ -496,10 +501,10 @@ Example output:
 
 If the design mentions observation but does not say where the result flows, the analyzer returns `insufficient_info` instead of guessing.
 
-The important boundary:
+The hard boundary:
 
 ```text
-Natural language -> inferred DesignIR
+Natural language -> LLM semantic interpretation -> DesignIR
 DesignIR -> deterministic classification
 ```
 
@@ -519,6 +524,22 @@ Minimal `DesignIR`:
   "uncertain": []
 }
 ```
+
+### No Lexical Analysis
+
+The project intentionally avoids keyword classifiers for design analysis. Words like `halt`, `loop`, `supervisor`, `monitor`, `prediction`, or `execucao` are not trusted as evidence.
+
+Only structured causal roles in `DesignIR` are analyzed:
+
+```text
+execution exists
+observation targets an execution
+observation produces a result
+control consumes that result
+consumer is same execution, future execution, external controller, or unknown
+```
+
+This is what makes the design path language-independent. The LLM handles semantic interpretation; the verifier does not inspect natural-language words.
 
 ### Trace Analysis
 
@@ -995,7 +1016,7 @@ python -m json.tool .codex-plugin\plugin.json
 python -m json.tool hooks\hooks.json
 python scripts\chc_session_guard.py --mode status --format human
 python scripts\evaluate_responses.py
-python scripts\chc_design_analyze.py "The current execution changes strategy when a supervisor predicts it will not finish."
+python scripts\chc_design_analyze.py examples\self-prediction.design-ir.json
 python scripts\chc_trace_check.py examples\self-prediction.trace.jsonl
 python scripts\chc_repair.py examples\self-prediction.analysis.json
 python scripts\chc_workflow_adapter.py examples\generic-workflow.json

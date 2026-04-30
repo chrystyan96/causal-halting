@@ -1,84 +1,18 @@
 #!/usr/bin/env python3
-"""DesignIR-based analyzer for Causal Halting.
+"""Deterministic DesignIR analyzer for Causal Halting.
 
-Natural-language design text is first converted into a small DesignIR. The
-classification is then deterministic over that IR. This keeps LLM/prose
-inference separate from the causal decision.
+This script intentionally does not understand natural language. The LLM must
+interpret prose into DesignIR first. This analyzer only validates and classifies
+structured causal roles.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
-import unicodedata
 from pathlib import Path
 from typing import Any
-
-
-def normalize(text: str) -> str:
-    without_accents = "".join(
-        char for char in unicodedata.normalize("NFKD", text) if not unicodedata.combining(char)
-    )
-    return " ".join(without_accents.lower().strip().split())
-
-
-def has_any(text: str, patterns: list[str]) -> bool:
-    return any(re.search(pattern, text) for pattern in patterns)
-
-
-OBSERVATION_PATTERNS = [
-    r"\bpredict",
-    r"\bprediction",
-    r"\bobserve",
-    r"\bobservation",
-    r"\bmonitor",
-    r"\bsupervisor",
-    r"\bevaluate",
-    r"\bsimulate",
-    r"\bdecide whether\b",
-    r"\bwill (finish|halt|complete|fail|continue)\b",
-    r"\bcurrent (run|execution).*(finish|halt|complete|fail|continue)\b",
-    r"\bexecucao atual\b",
-    r"\bconcluir\b",
-]
-
-SELF_EXEC_PATTERNS = [
-    r"\bsame (run|execution|agent)\b",
-    r"\bcurrent (run|execution)\b",
-    r"\bits own (run|execution)\b",
-    r"\bitself\b",
-    r"\bmesma execucao\b",
-    r"\bexecucao atual\b",
-    r"\bpropria execucao\b",
-]
-
-CONTROL_PATTERNS = [
-    r"\bchange[s]? strateg",
-    r"\bswitch(?:es)? strateg",
-    r"\bdecides? (whether )?to (continue|stop|retry|restart|change)",
-    r"\bschedules?\b",
-    r"\bcontrols?\b",
-    r"\bfeeds? back\b",
-    r"\buses? (the )?(prediction|result|answer)",
-    r"\bcontinua\b",
-    r"\bmuda de estrategia\b",
-    r"\bcontrola\b",
-]
-
-SAFE_BOUNDARY_PATTERNS = [
-    r"\bafter completion\b",
-    r"\bpost[- ]run\b",
-    r"\blogs after\b",
-    r"\bfuture run\b",
-    r"\bnext run\b",
-    r"\blater run\b",
-    r"\bexternal orchestrator\b",
-    r"\bseparate controller\b",
-    r"\bapos (a )?conclusao\b",
-    r"\bproxima execucao\b",
-]
 
 
 def safe_label(value: Any, fallback: str) -> str:
@@ -94,10 +28,6 @@ def result_node(execution: dict[str, Any]) -> str:
     return f"R({safe_label(execution.get('program'), 'Exec')},{safe_label(execution.get('input'), 'input')})"
 
 
-def default_execution(exec_id: str = "run-1", program: str = "AgentRun", input_value: str = "input") -> dict[str, str]:
-    return {"id": exec_id, "program": program, "input": input_value}
-
-
 def repair_for_self_feedback() -> list[str]:
     return [
         "Move the prediction result to an external orchestrator or controller.",
@@ -110,10 +40,26 @@ def repair_for_self_feedback() -> list[str]:
 
 def base_roles() -> dict[str, list[str]]:
     return {
-        "Code": ["AgentRun"],
-        "Exec": ["AgentRun(input)"],
+        "Code": [],
+        "Exec": [],
         "H": [],
         "HaltResult": [],
+    }
+
+
+def needs_design_ir_result(text: str) -> dict[str, Any]:
+    return {
+        "classification": "needs_design_ir",
+        "design_ir": None,
+        "inferred_graph": [],
+        "roles": base_roles(),
+        "uncertain_edges": [],
+        "repair": [],
+        "explanation": (
+            "Natural-language input is not analyzed by this script. "
+            "Interpret the design into DesignIR first, then rerun the analyzer."
+        ),
+        "input_preview": text.strip()[:200],
     }
 
 
@@ -188,7 +134,10 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
     feedback: list[dict[str, Any]] = []
     roles = {
         "Code": sorted({safe_label(execution.get("program"), "Exec") for execution in data["executions"]}),
-        "Exec": [f"{safe_label(execution.get('program'), 'Exec')}({safe_label(execution.get('input'), 'input')})" for execution in data["executions"]],
+        "Exec": [
+            f"{safe_label(execution.get('program'), 'Exec')}({safe_label(execution.get('input'), 'input')})"
+            for execution in data["executions"]
+        ],
         "H": sorted({safe_label(observation.get("observer"), "Observer") for observation in data["observations"]}),
         "HaltResult": sorted(observations.keys()),
     }
@@ -217,7 +166,7 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
                 {
                     "result": control["result"],
                     "target_exec": target_exec,
-                    "action": control.get("action", "control"),
+                    "action": control.get("action", control.get("purpose", "control")),
                 }
             )
 
@@ -254,70 +203,40 @@ def analyze_design_ir(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def infer_design_ir(text: str) -> dict[str, Any]:
-    lowered = normalize(text)
-    mentions_observation = has_any(lowered, OBSERVATION_PATTERNS)
-    mentions_self = has_any(lowered, SELF_EXEC_PATTERNS)
-    mentions_control = has_any(lowered, CONTROL_PATTERNS)
-    mentions_safe_boundary = has_any(lowered, SAFE_BOUNDARY_PATTERNS)
-    design_ir: dict[str, Any] = {
-        "executions": [default_execution()],
-        "observations": [],
-        "controls": [],
-        "uncertain": [],
-    }
-
-    if mentions_observation:
-        design_ir["observations"].append(
-            {
-                "id": "obs-1",
-                "observer": "SupervisorPrediction",
-                "target_exec": "run-1",
-                "result": "r-1",
-            }
-        )
-
-    if mentions_observation and mentions_self and mentions_control and not mentions_safe_boundary:
-        design_ir["controls"].append({"result": "r-1", "target_exec": "run-1", "action": "change_strategy"})
-    elif mentions_observation and mentions_control and mentions_safe_boundary:
-        design_ir["executions"].append(default_execution("run-2", "NextAgentRun", "input"))
-        design_ir["controls"].append({"result": "r-1", "target_exec": "run-2", "action": "schedule_future_run"})
-    elif mentions_observation and mentions_control and not mentions_self:
-        design_ir["uncertain"].append(
-            {
-                "edge": "R(AgentRun,input) -> ?",
-                "confidence": 0.45,
-                "reason": "The design mentions control from an observation result, but not whether it controls the observed execution.",
-            }
-        )
-    elif mentions_observation and not mentions_control:
-        design_ir["uncertain"].append(
-            {
-                "edge": "R(AgentRun,input) -> ?",
-                "confidence": 0.35,
-                "reason": "The design describes observation but not where the result flows.",
-            }
-        )
-    return design_ir
-
-
 def analyze_design(text: str) -> dict[str, Any]:
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
-        data = infer_design_ir(text)
+        return needs_design_ir_result(text)
     if isinstance(data, dict) and {"executions", "observations", "controls"}.issubset(data.keys()):
         return analyze_design_ir(data)
-    return analyze_design_ir(infer_design_ir(text))
+    return {
+        "classification": "parse_error",
+        "design_ir": data if isinstance(data, dict) else None,
+        "inferred_graph": [],
+        "roles": base_roles(),
+        "uncertain_edges": [],
+        "repair": [],
+        "explanation": "Input JSON is not a DesignIR object with executions, observations, and controls.",
+    }
 
 
 def validate_shape(result: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    allowed = {"causal_paradox", "valid_acyclic", "unproved", "insufficient_info", "parse_error"}
+    allowed = {
+        "causal_paradox",
+        "valid_acyclic",
+        "unproved",
+        "insufficient_info",
+        "needs_design_ir",
+        "parse_error",
+    }
     if result.get("classification") not in allowed:
-        errors.append("classification must be one of causal_paradox, valid_acyclic, unproved, insufficient_info, parse_error")
-    if "design_ir" in result and not isinstance(result.get("design_ir"), dict):
-        errors.append("design_ir must be an object when present")
+        errors.append(
+            "classification must be one of causal_paradox, valid_acyclic, unproved, insufficient_info, needs_design_ir, parse_error"
+        )
+    if "design_ir" in result and result.get("design_ir") is not None and not isinstance(result.get("design_ir"), dict):
+        errors.append("design_ir must be an object or null when present")
     if not isinstance(result.get("inferred_graph"), list):
         errors.append("inferred_graph must be a list")
     if not isinstance(result.get("roles"), dict):
@@ -361,8 +280,8 @@ def format_human(result: dict[str, Any]) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Infer and analyze a CHC DesignIR from design text or JSON.")
-    parser.add_argument("input", nargs="+", help="Design text, DesignIR JSON, or a path to a text/JSON file.")
+    parser = argparse.ArgumentParser(description="Analyze Causal Halting DesignIR JSON.")
+    parser.add_argument("input", nargs="+", help="DesignIR JSON or a path to a DesignIR JSON file.")
     parser.add_argument("--format", choices=("human", "json"), default="human")
     return parser
 
@@ -374,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
     if errors:
         result = {
             "classification": "parse_error",
-            "design_ir": {},
+            "design_ir": None,
             "inferred_graph": [],
             "roles": base_roles(),
             "uncertain_edges": [],

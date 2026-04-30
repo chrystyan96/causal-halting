@@ -63,7 +63,7 @@ Causal Halting gives a way to notice that boundary before it becomes an architec
 The current plugin adds three practical workflows:
 
 ```text
-analyze-design  infer DesignIR from a design, then classify it deterministically
+analyze-design  analyze DesignIR extracted by the LLM from a design
 analyze-trace   deterministically check JSONL execution events
 adapt-workflow  convert generic workflow JSON into CHC trace events
 repair          convert same-run feedback into an orchestrator/future-run boundary
@@ -73,7 +73,7 @@ verify-repair   compare before/after traces
 This moves the project from architectural hygiene toward causal verification:
 
 ```text
-extract DesignIR -> classify feedback -> propose repair -> verify before/after trace
+LLM extracts DesignIR -> verifier classifies feedback -> propose repair -> verify before/after trace
 ```
 
 The proof obligation is simple:
@@ -82,6 +82,13 @@ The proof obligation is simple:
 A prediction result about an execution must not be consumed by that same
 execution before it ends.
 ```
+
+## No Lexical Analysis
+
+Natural-language designs are not classified by scripts. The LLM must convert
+prose into `DesignIR`; deterministic tools then analyze only that structured
+artifact. This keeps the method language-independent and avoids trusting
+keywords as evidence.
 
 ## Project Links
 

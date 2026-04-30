@@ -17,6 +17,7 @@ class PortableSkillPackageTests(unittest.TestCase):
             "LICENSE.txt",
             "agents/openai.yaml",
             "references/causal-halting-calculus.md",
+            "references/design-ir-extraction.md",
             "scripts/chc_check.py",
             "scripts/chc_design_analyze.py",
             "scripts/chc_design_schema.py",
@@ -32,6 +33,7 @@ class PortableSkillPackageTests(unittest.TestCase):
             "examples/future-run.trace.jsonl",
             "examples/generic-workflow.json",
             "examples/post-end-audit.trace.jsonl",
+            "examples/self-prediction.design-ir.json",
             "examples/self-prediction.analysis.json",
         ]
 
