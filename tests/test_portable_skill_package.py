@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -9,6 +10,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILL_ROOT = REPO_ROOT / "skills" / "causal-halting"
+
+
+def load_skill_sync_module(script: Path):
+    spec = importlib.util.spec_from_file_location("isolated_sync_skill_package", script)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 class PortableSkillPackageTests(unittest.TestCase):
@@ -133,6 +142,25 @@ class PortableSkillPackageTests(unittest.TestCase):
             self.assertEqual("unknown", result["plugin_version"])
             self.assertTrue(Path(result["portable_skill"]).samefile(isolated))
             self.assertEqual([], result["targets"][0]["mismatches"])
+
+    def test_sync_copy_is_noop_when_source_is_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            isolated = Path(tmp) / "causal-halting"
+            shutil.copytree(SKILL_ROOT, isolated)
+            module = load_skill_sync_module(isolated / "scripts" / "sync_skill_package.py")
+
+            module.copy_skill(isolated)
+
+            self.assertTrue((isolated / "SKILL.md").is_file())
+
+    def test_sync_copy_rejects_target_inside_source_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            isolated = Path(tmp) / "causal-halting"
+            shutil.copytree(SKILL_ROOT, isolated)
+            module = load_skill_sync_module(isolated / "scripts" / "sync_skill_package.py")
+
+            with self.assertRaises(ValueError):
+                module.copy_skill(isolated / "nested-copy")
 
     def run_skill_checker(self, relative_input):
         completed = subprocess.run(
