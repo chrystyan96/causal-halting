@@ -181,6 +181,12 @@ class CausalHaltingCheckerTests(unittest.TestCase):
         self.assertEqual(result["classification"], "parse_error")
         self.assertIn("HaltResult cannot be passed", result["explanation"])
 
+    def test_run_rejects_extra_arguments(self):
+        result = chc_check.analyze_text("F(x) = halt\nrun F(A,B)\n")
+
+        self.assertEqual(result["classification"], "parse_error")
+        self.assertIn("expects 1 argument(s), got 2", result["explanation"])
+
 
 if __name__ == "__main__":
     unittest.main()

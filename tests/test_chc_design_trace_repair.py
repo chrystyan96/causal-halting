@@ -306,6 +306,21 @@ class CausalHaltingDesignTraceRepairTests(unittest.TestCase):
         )
         self.assertEqual(result["proof_obligations"][0]["valid_if"][0], "consumer is external_orchestrator")
 
+    def test_repair_engine_preserves_nested_feedback_nodes(self):
+        analysis = {
+            "classification": "causal_paradox",
+            "graph": [
+                "E(F(x),x) -> R(F(x),x)",
+                "R(F(x),x) -> E(F(x),x)",
+            ],
+        }
+
+        result = chc_repair.repair_analysis(analysis)
+
+        self.assertEqual(result["problem"]["graph"][0], "E(F(x),x) -> R(F(x),x)")
+        self.assertEqual(result["proof_obligations"][0]["target_exec_id"], "E(F(x),x)")
+        self.assertIn("R(F(x),x) -> E(Orchestrator,input)", result["repair_graph"])
+
     def test_verify_repair_compares_before_after_traces(self):
         before = "\n".join(
             [
