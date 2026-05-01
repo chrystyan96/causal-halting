@@ -162,6 +162,17 @@ class PortableSkillPackageTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.copy_skill(isolated / "nested-copy")
 
+    def test_sync_copy_rejects_target_above_source_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            isolated = Path(tmp) / "causal-halting"
+            shutil.copytree(SKILL_ROOT, isolated)
+            module = load_skill_sync_module(isolated / "scripts" / "sync_skill_package.py")
+
+            with self.assertRaises(ValueError):
+                module.copy_skill(Path(tmp))
+
+            self.assertTrue((isolated / "SKILL.md").is_file())
+
     def run_skill_checker(self, relative_input):
         completed = subprocess.run(
             [
