@@ -102,6 +102,34 @@ class CausalHaltingV31Tests(unittest.TestCase):
 
         self.assertEqual(result["classification"], "insufficient_info")
 
+    def test_chc4_mixed_logical_clock_values_do_not_crash(self):
+        trace = "\n".join(
+            [
+                json.dumps({"id": "a", "type": "exec_start", "exec_id": "run-1", "program": "AgentRun", "input": "task", "trace_id": "t", "logical_clock": 1}),
+                json.dumps({"id": "b", "type": "observe", "observer": "Sup", "target_exec_id": "run-1", "result_id": "r-1", "trace_id": "t", "logical_clock": "2"}),
+                json.dumps({"id": "c", "type": "consume", "result_id": "r-1", "consumer_exec_id": "run-1", "purpose": "change_strategy", "execution_identity_relation": "same", "trace_id": "t", "logical_clock": 10}),
+                json.dumps({"id": "d", "type": "exec_end", "exec_id": "run-1", "trace_id": "t", "logical_clock": "11"}),
+            ]
+        )
+
+        result = chc_temporal_check.analyze_temporal_text(trace)
+
+        self.assertEqual(result["classification"], "causal_paradox")
+        self.assertIn({"source": "a", "target": "b"}, result["happens_before_path"])
+
+    def test_chc4_numeric_timestamp_order_is_temporal_not_lexicographic(self):
+        trace = "\n".join(
+            [
+                json.dumps({"id": "late", "type": "exec_end", "exec_id": "run-1", "timestamp": "10"}),
+                json.dumps({"id": "early", "type": "exec_start", "exec_id": "run-1", "program": "AgentRun", "input": "task", "timestamp": 2}),
+            ]
+        )
+
+        result = chc_temporal_check.analyze_temporal_text(trace)
+
+        self.assertIn({"source": "early", "target": "late"}, result["happens_before_path"])
+        self.assertNotIn({"source": "late", "target": "early"}, result["happens_before_path"])
+
     def test_chc5_bounded_local_metric_is_valid_when_scope_is_local(self):
         payload = {
             "executions": [{"id": "run-1", "program": "AgentRun", "input": "task"}],
